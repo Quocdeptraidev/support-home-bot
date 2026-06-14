@@ -1,322 +1,398 @@
-# Master Plan: Bot Support Homestay 🏡
-> Demo: **Mây Homestay Đà Lạt** — Hệ thống bot tự động hỗ trợ đặt phòng
+# Master Plan: Mây Homestay Facebook Support Bot
+
+> Demo: **Mây Homestay Đà Lạt** - bot hỗ trợ khách trực tiếp trên Facebook
+> Messenger, dùng AI để hiểu hội thoại và Telegram để chủ homestay tiếp quản khi
+> cần.
 
 ---
 
-## Mục tiêu demo
+## 1. Mục tiêu
 
-Xây dựng một homestay giả lập nhìn như thật, bao gồm:
+Xây dựng một demo gần với vận hành thật:
 
-- **Fanpage/IG demo:** Mây Homestay Đà Lạt
-- **Bot inbox tự động** xử lý đặt phòng qua chat
-- **Admin dashboard mini** cho chủ homestay
-- **Database PostgreSQL** lưu toàn bộ dữ liệu
+- Khách nhắn trực tiếp vào Facebook Page của Mây Homestay.
+- Meta gửi message event về FastAPI webhook.
+- AI phân loại ý định, trích xuất thông tin và soạn câu trả lời.
+- Business rules kiểm soát giá, phòng trống và booking.
+- Bot trả lời khách qua Facebook Messenger Send API.
+- Chủ homestay nhận Telegram notification khi cần xác nhận hoặc xử lý thủ công.
+- PostgreSQL lưu conversation, message, quyết định AI và booking.
+- Redis xử lý event trùng, lock, cache và rate limit.
+
+MVP là backend-only, không chứa source web chat hoặc admin dashboard.
 
 ---
 
-## Flow demo mẫu
+## 2. Luồng demo chính
 
+```text
+Khách nhắn Facebook Page
+        |
+        v
+Meta Messenger Webhook
+        |
+        v
+FastAPI
+  |-- xác minh signature
+  |-- bỏ echo/unsupported event
+  |-- chống xử lý event trùng bằng Redis
+  |-- tải conversation history
+  |-- gọi OpenAI
+  |-- chạy business rules
+        |
+        +------> Facebook Send API trả lời khách
+        |
+        +------> Telegram báo chủ homestay khi cần
+        |
+        +------> PostgreSQL lưu audit/conversation
 ```
-Khách:  cuối tuần này còn phòng 2 người không?
-Bot:    Dạ mình muốn check-in ngày nào ạ?
 
-Khách:  thứ 7 đến chủ nhật
-Bot:    Dạ mình đi mấy người ạ?
+### Ví dụ
 
-Khách:  2 người
-Bot:    Hiện còn phòng Couple View Vườn.
-        Giá: 650.000đ/đêm.
-        Tổng: 650.000đ.
-        Mình muốn giữ phòng không ạ?
+```text
+Khách: Cuối tuần này còn phòng cho 2 người không?
 
-Khách:  Có
-Bot:    Dạ cho em xin SĐT để giữ phòng ạ.
+AI result:
+  intent: booking_inquiry
+  guest_count: 2
+  check_in: chưa có
+  confidence: 0.94
 
-Khách:  0909 xxx xxx
-Bot:    Em đã ghi nhận booking. Chủ homestay sẽ xác nhận lại trong ít phút ạ.
+Bot: Dạ mình muốn nhận phòng ngày nào ạ?
+
+Khách: Thứ 7 đến chủ nhật.
+
+Backend:
+  - parse ngày theo Asia/Ho_Chi_Minh
+  - kiểm tra inventory bằng business rule
+  - tính giá deterministic
+
+Bot: Hiện còn Couple View Vườn, giá 650.000đ/đêm.
+     Mình có muốn chủ homestay giữ phòng không ạ?
+
+Khách: Có.
+
+Bot: Dạ cho em xin số điện thoại để chủ homestay xác nhận ạ.
+
+Telegram:
+  Booking lead mới
+  - Khách: Facebook PSID đã che bớt
+  - Ngày: ...
+  - Số khách: 2
+  - Phòng đề xuất: Couple View Vườn
+  - SĐT: ...
 ```
 
 ---
 
-## 3 màn hình chính
+## 3. Nguyên tắc sản phẩm
 
-### 1. Màn chat
-Giả lập khách nhắn và bot trả lời — giao diện giống Messenger, có:
-- Bubble chat, avatar giả lập
-- Typing indicator 1–2 giây trước khi bot trả lời (tạo cảm giác thật)
-- Hiển thị thời gian gửi tin
+### AI hỗ trợ, không quyết định nghiệp vụ
 
-### 2. Admin Dashboard
-Chủ homestay xem danh sách booking:
+AI được dùng cho:
 
-| Trường | Mô tả |
-|---|---|
-| Khách mới | Tên / SĐT khách |
-| Ngày ở | Check-in → Check-out |
-| Số người | Số khách |
-| Phòng | Tên phòng đã đặt |
-| Tổng tiền | Số đêm × giá |
-| Trạng thái | `pending` / `confirmed` / `canceled` |
+- intent classification;
+- entity extraction;
+- FAQ;
+- draft reply;
+- tóm tắt escalation.
 
-### 3. Cấu hình phòng
-Chủ nhập thông tin phòng:
-- Tên phòng
-- Giá / đêm (hoặc / người với Dorm)
-- Số lượng phòng
-- Sức chứa
-- Mô tả
+AI không được tự:
+
+- xác nhận còn phòng;
+- tính giá cuối cùng;
+- tạo, xác nhận hoặc hủy booking;
+- quyết định đã nhận thanh toán.
+
+Các hành động trên phải do application/domain service quyết định.
+
+### Telegram là human escalation
+
+Telegram gửi thông báo khi:
+
+- khách yêu cầu gặp nhân viên;
+- khách muốn giữ/đặt phòng;
+- AI confidence thấp;
+- thiếu dữ liệu hoặc gặp tình huống ngoài phạm vi;
+- Facebook, OpenAI hoặc database gặp lỗi cần can thiệp.
+
+Telegram không thay thế phản hồi Messenger.
 
 ---
 
-## Tech Stack
+## 4. Tech Stack
 
 | Tầng | Công nghệ |
 |---|---|
-| Backend | Python FastAPI |
-| Database | PostgreSQL |
-| Frontend admin | React / Next.js |
-| Bot demo | Web chat giả lập (trước) → Facebook/Instagram API (sau) |
+| API | Python 3.13, FastAPI |
+| Database | PostgreSQL 17 |
+| ORM/Migration | SQLAlchemy 2 async, Alembic |
+| Cache/Idempotency | Redis 8 |
+| AI | OpenAI Responses API, model cấu hình qua env |
+| Messaging | Meta Messenger Platform / Graph API |
+| Escalation | Telegram Bot API |
+| HTTP client | HTTPX |
+| Validation | Pydantic / Pydantic Settings |
+| Quality | Ruff, mypy strict, pytest |
+| Local runtime | Docker Compose |
 
 ---
 
-## Kiến trúc hệ thống
+## 5. Kiến trúc source
 
-```
-[Web Chat Demo]    [Admin Dashboard]    [Facebook/IG - sau]
-       │                  │                      │
-       └──────────────────┴──────────────────────┘
-                          │
-                   [FastAPI Backend]
-                  ┌───────┼────────┐
-             [Bot Engine] [Booking] [Room Service]
-                  └───────┼────────┘
-                    [PostgreSQL]
-              ┌──────┬────────┬──────────┐
-           [rooms] [bookings] [conversations] [room_types]
-```
-
----
-
-## Database Schema
-
-### Bảng `rooms`
-```sql
-CREATE TABLE rooms (
-    id              SERIAL PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL,
-    price_per_night INTEGER NOT NULL,        -- đơn vị: VNĐ
-    capacity        INTEGER NOT NULL,        -- số người tối đa
-    total_units     INTEGER NOT NULL,        -- số phòng loại này
-    price_type      VARCHAR(10) DEFAULT 'room', -- 'room' hoặc 'person'
-    description     TEXT,
-    is_active       BOOLEAN DEFAULT TRUE,
-    created_at      TIMESTAMP DEFAULT NOW()
-);
+```text
+apps/api/app/
+├── api/
+│   ├── routes/             # health, Facebook webhook
+│   ├── dependencies/       # composition root
+│   └── schemas/            # HTTP/provider boundary schemas
+├── application/
+│   ├── use_cases/          # process message, escalation, booking
+│   └── errors.py
+├── domain/
+│   ├── messaging.py        # entities và enums
+│   ├── booking.py          # business entities/rules, triển khai sau
+│   └── ports.py            # protocol cho adapter
+├── infrastructure/
+│   ├── ai/                 # OpenAI adapter
+│   ├── messaging/          # Meta adapter
+│   ├── notifications/      # Telegram adapter
+│   ├── persistence/        # SQLAlchemy repositories
+│   └── cache/              # Redis idempotency/rate limit
+├── core/
+│   ├── config.py
+│   ├── security.py
+│   ├── logging.py
+│   └── errors.py
+└── main.py
 ```
 
-### Bảng `bookings`
-```sql
-CREATE TABLE bookings (
-    id              SERIAL PRIMARY KEY,
-    room_id         INTEGER REFERENCES rooms(id),
-    check_in        DATE NOT NULL,
-    check_out       DATE NOT NULL,
-    num_guests      INTEGER NOT NULL,
-    guest_phone     VARCHAR(20) NOT NULL,
-    guest_name      VARCHAR(100),
-    total_price     INTEGER NOT NULL,        -- đơn vị: VNĐ
-    status          VARCHAR(20) DEFAULT 'pending', -- pending/confirmed/canceled
-    created_at      TIMESTAMP DEFAULT NOW()
-);
-```
+Dependency:
 
-### Bảng `conversations`
-```sql
-CREATE TABLE conversations (
-    id              SERIAL PRIMARY KEY,
-    session_id      VARCHAR(64) UNIQUE NOT NULL,
-    messages        JSONB DEFAULT '[]',
-    current_state   VARCHAR(50) DEFAULT 'IDLE',
-    slots           JSONB DEFAULT '{}',     -- dữ liệu đang thu thập
-    booking_id      INTEGER REFERENCES bookings(id),
-    updated_at      TIMESTAMP DEFAULT NOW()
-);
+```text
+api -> application -> domain
+infrastructure -------> ports
 ```
 
 ---
 
-## Seed Data — 3 phòng mặc định
+## 6. Environment configuration
 
-```sql
-INSERT INTO rooms (name, price_per_night, capacity, total_units, price_type, description) VALUES
-(
-  'Couple View Vườn',
-  650000,
-  2,
-  3,
-  'room',
-  'Phòng đôi view vườn thông, có ban công riêng. Phù hợp cho 2 người.'
-),
-(
-  'Family Room',
-  1200000,
-  4,
-  2,
-  'room',
-  'Phòng gia đình rộng rãi, 2 giường đôi, view núi Langbiang.'
-),
-(
-  'Dorm',
-  250000,
-  8,
-  1,
-  'person',
-  'Phòng tập thể 8 giường tầng, tủ khóa riêng, phù hợp hội nhóm.'
-);
-```
+`.env.example` là danh sách biến chuẩn.
 
-> **Lưu ý:** Phòng Dorm tính giá theo **đầu người** (`num_guests × 250.000đ`), hai phòng còn lại tính theo **đêm**.
+Nhóm cấu hình:
+
+- app/server/timezone;
+- PostgreSQL;
+- Redis;
+- Facebook Page access token, app secret, verify token, API version;
+- OpenAI API key và model;
+- Telegram bot token/chat ID;
+- rate limit và AI safety.
+
+Quy tắc:
+
+- Không commit `.env`.
+- Không hardcode token/model/API version.
+- `FB_API_VERSION` phải đối chiếu Meta App Dashboard trước khi deploy.
+- Healthcheck chạy được khi chưa có provider token.
+- Endpoint/provider adapter phải fail rõ ràng nếu integration chưa được cấu hình.
 
 ---
 
-## Bot Engine — State Machine
+## 7. Facebook webhook
 
-### Các trạng thái
+### Verification
 
-```
-IDLE
-  → (nhận tin nhắn về phòng/đặt chỗ)
-ASK_CHECKIN
-  → (nhận ngày check-in)
-ASK_CHECKOUT
-  → (nhận ngày check-out)
-ASK_GUESTS
-  → (nhận số người)
-SHOW_ROOMS
-  → (hiển thị phòng phù hợp + giá)
-  → (khách xác nhận)
-ASK_PHONE
-  → (nhận SĐT)
-DONE
-  → (lưu booking, thông báo hoàn tất)
+```http
+GET /api/v1/webhooks/facebook
 ```
 
-### Slots cần thu thập
+- kiểm tra `hub.mode`;
+- so sánh `hub.verify_token` bằng constant-time comparison;
+- trả `hub.challenge` khi hợp lệ.
 
-| Slot | Ví dụ đầu vào | Ghi chú |
-|---|---|---|
-| `check_in_date` | "thứ 7", "28/6", "cuối tuần" | Dùng `dateparser` locale `vi` |
-| `check_out_date` | "chủ nhật", "hôm sau", "+1 ngày" | Mặc định = check_in + 1 |
-| `num_guests` | "2 người", "đi 4 người", "chỉ mình tôi" | Extract số nguyên |
-| `phone_number` | "0909123456", "090 912 3456" | Regex chuẩn hóa SĐT VN |
+### Event callback
 
-### Logic tính giá
-
-```python
-def calculate_price(room, check_in, check_out, num_guests):
-    num_nights = (check_out - check_in).days
-    if room.price_type == 'person':
-        return num_guests * room.price_per_night * num_nights
-    else:
-        return room.price_per_night * num_nights
+```http
+POST /api/v1/webhooks/facebook
 ```
+
+Yêu cầu:
+
+- đọc raw body;
+- xác minh `X-Hub-Signature-256` bằng `FB_APP_SECRET`;
+- parse JSON sau khi signature hợp lệ;
+- bỏ message echo và event chưa hỗ trợ;
+- idempotent theo Meta event/message ID;
+- acknowledge nhanh;
+- không xử lý cùng conversation song song nếu có thể gây đảo thứ tự.
+
+Khi AI/provider xử lý lâu, callback chỉ validate + enqueue; worker xử lý phần còn lại.
 
 ---
 
-## API Endpoints
+## 8. AI contract
 
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `POST` | `/chat` | Gửi tin nhắn, nhận phản hồi bot |
-| `GET` | `/rooms` | Danh sách tất cả phòng |
-| `GET` | `/rooms/available` | Check phòng còn trống theo ngày + số người |
-| `POST` | `/bookings` | Tạo booking mới |
-| `GET` | `/bookings` | Dashboard: lấy danh sách booking |
-| `PATCH` | `/bookings/{id}/status` | Confirm / cancel booking |
-| `PUT` | `/rooms/{id}` | Admin cập nhật thông tin phòng |
-| `POST` | `/rooms` | Admin thêm phòng mới |
-
-### Request/Response mẫu — `/chat`
+AI phải trả structured output:
 
 ```json
-// Request
-POST /chat
 {
-  "session_id": "abc123",
-  "message": "thứ 7 đến chủ nhật"
-}
-
-// Response
-{
-  "reply": "Dạ mình đi mấy người ạ?",
-  "state": "ASK_GUESTS",
-  "slots": {
-    "check_in_date": "2025-06-28",
-    "check_out_date": "2025-06-29"
-  }
+  "intent": "booking_inquiry",
+  "entities": {
+    "check_in": null,
+    "check_out": null,
+    "guest_count": 2,
+    "phone": null
+  },
+  "draft_reply": "Dạ mình muốn nhận phòng ngày nào ạ?",
+  "confidence": 0.94,
+  "needs_human": false,
+  "escalation_reason": null
 }
 ```
 
----
+Backend phải:
 
-## Roadmap thực hiện
-
-### Sprint 1 — Backend nền (1–2 ngày)
-- [ ] Setup FastAPI project structure
-- [ ] Kết nối PostgreSQL, tạo migration
-- [ ] Seed 3 phòng mặc định
-- [ ] API CRUD rooms
-
-### Sprint 2 — Bot Engine (2–3 ngày)
-- [ ] Viết state machine xử lý hội thoại
-- [ ] Nhận diện ngày tiếng Việt (dùng `dateparser`)
-- [ ] Extract số người, SĐT
-- [ ] Check availability + tính giá
-- [ ] Endpoint `/chat` hoạt động end-to-end
-
-### Sprint 3 — Web Chat UI (2 ngày)
-- [ ] Giao diện chat giả lập Messenger (React)
-- [ ] Bubble chat, avatar, timestamp
-- [ ] Typing indicator giả
-- [ ] Kết nối API `/chat`
-
-### Sprint 4 — Admin Dashboard (2–3 ngày)
-- [ ] Bảng danh sách booking + filter theo trạng thái
-- [ ] Nút confirm / cancel
-- [ ] Form cấu hình phòng (thêm / sửa)
-- [ ] Realtime hoặc polling 30 giây để cập nhật booking mới
-
-### Sprint 5 — Hoàn thiện demo (1–2 ngày)
-- [ ] Chuẩn bị 3 kịch bản demo cố định
-- [ ] Polish UI, responsive
-- [ ] Test end-to-end
-- [ ] Deploy (Railway / Render cho backend, Vercel cho frontend)
-
-### Giai đoạn sau — Nối mạng xã hội (~1 tuần)
-- [ ] Đăng ký Facebook Developer App
-- [ ] Cấu hình Webhook Messenger
-- [ ] Map session_id → PSID Facebook
-- [ ] Test với tài khoản thật
+- validate schema;
+- giới hạn conversation history;
+- không lưu chain-of-thought;
+- không tin entity chưa được business rule kiểm tra;
+- fallback + escalation khi provider lỗi hoặc confidence dưới ngưỡng.
 
 ---
 
-## Lưu ý khi build
+## 9. Database mục tiêu
 
-**Bot rule-based thay vì LLM cho demo**
-Nhanh, ổn định, không tốn API cost khi đi chào hàng. Sau khi có khách hàng thật mới nâng cấp lên AI.
+### Giai đoạn conversation pipeline
 
-**Chuẩn bị demo script cố định**
-Cần sẵn 2–3 kịch bản để không bị lỗi giữa buổi gặp khách hàng:
-1. Khách book phòng thành công (flow chính)
-2. Khách hỏi phòng đã hết (edge case)
-3. Chủ xác nhận / hủy booking trên dashboard
+- `conversations`
+- `messages`
+- `ai_decisions`
+- `escalations`
 
-**Typing indicator quan trọng cho cảm giác thật**
-Delay 1.2–2 giây trước mỗi phản hồi bot, kèm hiệu ứng "..." đang nhập.
+### Giai đoạn booking
 
-**Phân biệt giá phòng vs giá người**
-Handle rõ trong Room model để tránh tính sai khi demo phòng Dorm.
+- `rooms`
+- `bookings`
+
+Quy tắc inventory:
+
+- khoảng ngày dùng `[check_in, check_out)`;
+- overlap khi:
+  `existing.check_in < requested.check_out`
+  và `existing.check_out > requested.check_in`;
+- booking `pending` và `confirmed` giữ inventory;
+- booking `canceled` không giữ inventory;
+- tiền lưu integer VNĐ.
+
+Schema chi tiết: `docs/database-schema.md`.
 
 ---
 
-*Tài liệu tạo cho demo: Mây Homestay Đà Lạt Bot Support System*
+## 10. API scope
+
+| Method | Endpoint | Giai đoạn | Mô tả |
+|---|---|---|---|
+| GET | `/health` | 1 | process health |
+| GET | `/api/v1/webhooks/facebook` | 1 | Meta verification |
+| POST | `/api/v1/webhooks/facebook` | 1 | nhận Messenger event |
+| GET | `/ready` | 2 | PostgreSQL/Redis readiness |
+| GET | `/api/v1/rooms` | 3 | danh sách phòng |
+| GET | `/api/v1/rooms/available` | 3 | kiểm tra inventory |
+| POST | `/api/v1/bookings` | 3 | tạo booking pending |
+| PATCH | `/api/v1/bookings/{id}/status` | 4 | confirm/cancel |
+
+---
+
+## 11. Roadmap
+
+### Sprint 0 - Foundation
+
+- [x] Chốt Facebook-first architecture.
+- [x] Tạo `AGENTS.md` và tài liệu kỹ thuật.
+- [x] Setup FastAPI, PostgreSQL, Redis và Docker Compose.
+- [x] Setup Pydantic Settings cho Facebook/OpenAI/Telegram.
+- [x] Tạo Clean Architecture source skeleton.
+- [x] Implement webhook verification và signature utility.
+- [x] Build image, chạy Ruff, mypy và pytest.
+
+### Sprint 1 - Facebook webhook end-to-end
+
+- [ ] Thêm `POST /api/v1/webhooks/facebook`.
+- [ ] Parse Meta Page message event.
+- [ ] Bỏ echo/unsupported event.
+- [ ] Redis idempotency theo message/event ID.
+- [ ] Conversation lock.
+- [ ] Meta Send API adapter.
+- [ ] Unit/integration tests cho webhook.
+- [ ] Dùng tunnel HTTPS để Meta gọi môi trường local.
+
+### Sprint 2 - AI và Telegram escalation
+
+- [ ] OpenAI Responses API adapter.
+- [ ] Structured output schema.
+- [ ] Conversation history repository.
+- [ ] Confidence và safety fallback.
+- [ ] Telegram notifier.
+- [ ] FAQ và booking-intent demo.
+- [ ] Test timeout/provider failure.
+
+### Sprint 3 - Room và booking rules
+
+- [ ] Migration `rooms` và seed ba loại phòng.
+- [ ] Migration `bookings`.
+- [ ] Availability service.
+- [ ] Price calculation cho room/person.
+- [ ] Booking lead/pending workflow.
+- [ ] Telegram booking summary.
+
+### Sprint 4 - Hardening demo
+
+- [ ] Structured logging và request correlation.
+- [ ] Rate limiting.
+- [ ] Readiness endpoint.
+- [ ] Retry/backoff và delivery audit.
+- [ ] Ba demo scripts cố định.
+- [ ] Deploy backend + PostgreSQL + Redis.
+- [ ] Meta App production checklist.
+
+### Giai đoạn sau
+
+- [ ] Admin dashboard.
+- [ ] Human takeover UI.
+- [ ] Instagram messaging.
+- [ ] Multi-homestay/tenant.
+- [ ] Analytics và reporting.
+
+---
+
+## 12. Ba kịch bản demo bắt buộc
+
+1. **FAQ thành công**
+
+   Khách hỏi giờ check-in hoặc tiện nghi, bot trả lời trên Messenger.
+
+2. **Booking lead và escalation**
+
+   Khách cung cấp ngày/số người/SĐT, backend kiểm tra rule và Telegram báo chủ nhà.
+
+3. **Fallback an toàn**
+
+   AI lỗi hoặc confidence thấp, bot xin phép chuyển nhân viên và Telegram nhận cảnh báo.
+
+---
+
+## 13. Definition of Done
+
+- Webhook signature và verify token được kiểm tra.
+- Event trùng không tạo side effect lần hai.
+- Provider calls có timeout và lỗi được chuyển thành internal error.
+- AI output được validate.
+- Không có token/secret trong log hoặc git.
+- Ruff, mypy và pytest đều qua.
+- Tài liệu architecture, API contract và schema đúng với code.
+
+---
+
+*Master plan cập nhật ngày 14/06/2026 cho hướng Facebook Messenger + AI + Telegram.*

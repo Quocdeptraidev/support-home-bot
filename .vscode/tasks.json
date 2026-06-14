@@ -1,0 +1,24 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Docker: dev",
+      "type": "shell",
+      "command": "docker compose up --build",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: check",
+      "type": "shell",
+      "command": ".\\scripts\\check.ps1",
+      "problemMatcher": []
+    },
+    {
+      "label": "Database: migrate",
+      "type": "shell",
+      "command": ".\\scripts\\migrate.ps1",
+      "problemMatcher": []
+    }
+  ]
+}

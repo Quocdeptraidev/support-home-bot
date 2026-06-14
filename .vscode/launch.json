@@ -2,23 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "C/C++ Runner: Debug Session",
-      "type": "cppdbg",
+      "name": "API: FastAPI",
+      "type": "debugpy",
       "request": "launch",
-      "args": [],
-      "stopAtEntry": false,
-      "externalConsole": true,
-      "cwd": "f:/support-home-bot",
-      "program": "f:/support-home-bot/build/Debug/outDebug",
-      "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
-      "setupCommands": [
-        {
-          "description": "Enable pretty-printing for gdb",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
-        }
-      ]
+      "module": "fastapi",
+      "args": [
+        "dev",
+        "app/main.py"
+      ],
+      "cwd": "${workspaceFolder}/apps/api",
+      "jinja": true
     }
   ]
 }

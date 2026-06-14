@@ -1,0 +1,27 @@
+# Environment
+.env
+.env.local
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+htmlcov/
+.coverage
+
+# Editors and OS
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker and local data
+postgres_data/
+redis_data/
+
+# Agents rules
+.agents/
+
