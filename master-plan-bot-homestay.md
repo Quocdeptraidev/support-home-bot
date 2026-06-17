@@ -319,14 +319,14 @@ Schema chi tiết: `docs/database-schema.md`.
 
 ### Sprint 1 - Facebook webhook end-to-end
 
-- [ ] Thêm `POST /api/v1/webhooks/facebook`.
-- [ ] Parse Meta Page message event.
-- [ ] Bỏ echo/unsupported event.
-- [ ] Redis idempotency theo message/event ID.
-- [ ] Conversation lock.
-- [ ] Meta Send API adapter.
-- [ ] Unit/integration tests cho webhook.
-- [ ] Dùng tunnel HTTPS để Meta gọi môi trường local.
+- [x] Thêm `POST /api/v1/webhooks/facebook`.
+- [x] Parse Meta Page message event.
+- [x] Bỏ echo/unsupported event.
+- [x] Redis idempotency theo message/event ID.
+- [x] Conversation lock.
+- [x] Meta Send API adapter.
+- [x] Unit/integration tests cho webhook.
+- [x] Dùng tunnel HTTPS để Meta gọi môi trường local.
 
 ### Sprint 2 - AI và Telegram escalation
 

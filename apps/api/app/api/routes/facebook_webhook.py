@@ -1,16 +1,22 @@
 import hmac
 import json
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
+from redis.asyncio import Redis
 
+from app.api.dependencies import get_process_incoming_message_use_case, get_redis
+from app.application.use_cases.process_incoming_message import ProcessIncomingMessage
 from app.core.config import Settings, get_settings
 from app.core.security import verify_facebook_signature
 from app.infrastructure.messaging.facebook_event_parser import (
     InvalidFacebookWebhookPayload,
     parse_facebook_messages,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/webhooks/facebook", tags=["facebook-webhook"])
 
@@ -43,6 +49,8 @@ def verify_facebook_webhook(
 async def receive_facebook_webhook(
     request: Request,
     config: Annotated[Settings, Depends(get_settings)],
+    redis: Annotated[Redis, Depends(get_redis)],
+    use_case: Annotated[ProcessIncomingMessage, Depends(get_process_incoming_message_use_case)],
     signature: Annotated[str | None, Header(alias="X-Hub-Signature-256")] = None,
 ) -> str:
     app_secret = config.fb_app_secret.get_secret_value()
@@ -61,11 +69,26 @@ async def receive_facebook_webhook(
 
     try:
         payload = json.loads(raw_body)
-        parse_facebook_messages(payload)
+        messages = parse_facebook_messages(payload)
     except (json.JSONDecodeError, UnicodeDecodeError, InvalidFacebookWebhookPayload) as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid Facebook webhook payload",
         ) from error
+
+    # Process each message sequentially with a Redis distributed lock per sender
+    for message in messages:
+        try:
+            lock_name = f"lock:conversation:{message.sender_id}"
+            async with redis.lock(lock_name, timeout=30):
+                await use_case.execute(message)
+        except Exception as error:
+            logger.error(
+                "Error processing message %s from sender %s: %s",
+                message.message_id,
+                message.sender_id,
+                error,
+                exc_info=True,
+            )
 
     return "EVENT_RECEIVED"
