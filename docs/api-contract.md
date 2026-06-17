@@ -33,7 +33,8 @@ Token sai hoặc thiếu trả `403`.
 
 ### `POST /api/v1/webhooks/facebook`
 
-Status: contract mục tiêu cho Sprint 1, chưa được expose trong scaffold hiện tại.
+Status: endpoint đã expose, xác minh signature và parse text message. Echo và event
+không hỗ trợ được acknowledge nhưng không tạo message để xử lý.
 
 Headers:
 
