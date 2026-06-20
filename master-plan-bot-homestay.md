@@ -340,12 +340,12 @@ Schema chi tiết: `docs/database-schema.md`.
 
 ### Sprint 3 - Room và booking rules
 
-- [ ] Migration `rooms` và seed ba loại phòng.
-- [ ] Migration `bookings`.
-- [ ] Availability service.
-- [ ] Price calculation cho room/person.
-- [ ] Booking lead/pending workflow.
-- [ ] Telegram booking summary.
+- [x] Migration `rooms` và seed ba loại phòng.
+- [x] Migration `bookings`.
+- [x] Availability service.
+- [x] Price calculation cho room/person.
+- [x] Booking lead/pending workflow.
+- [x] Telegram booking summary.
 
 ### Sprint 4 - Hardening demo
 

@@ -1,8 +1,18 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,6 +52,9 @@ class ConversationModel(Base):
     )
     escalations: Mapped[list["EscalationModel"]] = relationship(
         "EscalationModel", back_populates="conversation", cascade="all, delete-orphan"
+    )
+    bookings: Mapped[list["BookingModel"]] = relationship(
+        "BookingModel", back_populates="conversation", cascade="all, delete-orphan"
     )
 
 
@@ -141,3 +154,65 @@ class EscalationModel(Base):
     conversation: Mapped[ConversationModel] = relationship(
         "ConversationModel", back_populates="escalations"
     )
+
+
+class RoomModel(Base):
+    __tablename__ = "rooms"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    price_per_night: Mapped[int] = mapped_column(nullable=False)
+    capacity: Mapped[int] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    bookings: Mapped[list["BookingModel"]] = relationship(
+        "BookingModel", back_populates="room", cascade="all, delete-orphan"
+    )
+
+
+class BookingModel(Base):
+    __tablename__ = "bookings"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    room_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("rooms.id"), index=True, nullable=False)
+    check_in: Mapped[date] = mapped_column(Date, nullable=False)
+    check_out: Mapped[date] = mapped_column(Date, nullable=False)
+    guest_count: Mapped[int] = mapped_column(nullable=False)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    total_price: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending", nullable=False
+    )  # "pending", "confirmed", "canceled"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    conversation: Mapped[ConversationModel] = relationship(
+        "ConversationModel", back_populates="bookings"
+    )
+    room: Mapped[RoomModel] = relationship("RoomModel", back_populates="bookings")
