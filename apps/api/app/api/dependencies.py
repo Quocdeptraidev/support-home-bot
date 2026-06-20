@@ -10,10 +10,12 @@ from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal, get_db
 from app.domain.ports import (
     AIResponder,
+    BookingRepository,
     ConversationRepository,
     EscalationNotifier,
     IdempotencyStore,
     MessageGateway,
+    RoomRepository,
 )
 from app.infrastructure.ai.fake_ai_responder import FakeAIResponder
 from app.infrastructure.ai.openai_conversation_responder import OpenAIConversationResponder
@@ -23,17 +25,25 @@ from app.infrastructure.notifications.fake_escalation_notifier import FakeEscala
 from app.infrastructure.notifications.telegram_escalation_notifier import (
     TelegramEscalationNotifier,
 )
+from app.infrastructure.persistence.in_memory_booking_repository import InMemoryBookingRepository
 from app.infrastructure.persistence.in_memory_conversation_repository import (
     InMemoryConversationRepository,
+)
+from app.infrastructure.persistence.in_memory_room_repository import InMemoryRoomRepository
+from app.infrastructure.persistence.sqlalchemy_booking_repository import (
+    SqlAlchemyBookingRepository,
 )
 from app.infrastructure.persistence.sqlalchemy_conversation_repository import (
     SqlAlchemyConversationRepository,
 )
+from app.infrastructure.persistence.sqlalchemy_room_repository import SqlAlchemyRoomRepository
 
 # Singletons for mock/in-memory components to preserve state across requests in tests
 _conversation_repository = InMemoryConversationRepository()
 _ai_responder = FakeAIResponder()
 _escalation_notifier = FakeEscalationNotifier()
+_room_repository = InMemoryRoomRepository()
+_booking_repository = InMemoryBookingRepository()
 
 
 async def get_redis(
@@ -59,6 +69,24 @@ async def get_conversation_repository(
     if settings.app_env == "test":
         return _conversation_repository
     return SqlAlchemyConversationRepository(db)
+
+
+async def get_room_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> RoomRepository:
+    if settings.app_env == "test":
+        return _room_repository
+    return SqlAlchemyRoomRepository(db)
+
+
+async def get_booking_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BookingRepository:
+    if settings.app_env == "test":
+        return _booking_repository
+    return SqlAlchemyBookingRepository(db)
 
 
 async def get_ai_responder(
@@ -107,6 +135,8 @@ async def get_process_incoming_message_use_case(
     idempotency_store: Annotated[IdempotencyStore, Depends(get_idempotency_store)],
     message_gateway: Annotated[MessageGateway, Depends(get_message_gateway)],
     escalation_notifier: Annotated[EscalationNotifier, Depends(get_escalation_notifier)],
+    room_repository: Annotated[RoomRepository, Depends(get_room_repository)],
+    booking_repository: Annotated[BookingRepository, Depends(get_booking_repository)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ProcessIncomingMessage:
     return ProcessIncomingMessage(
@@ -115,6 +145,8 @@ async def get_process_incoming_message_use_case(
         idempotency_store=idempotency_store,
         message_gateway=message_gateway,
         escalation_notifier=escalation_notifier,
+        room_repository=room_repository,
+        booking_repository=booking_repository,
         history_limit=settings.ai_max_conversation_history,
         idempotency_ttl_seconds=settings.redis_idempotency_ttl_seconds,
         escalation_threshold=settings.ai_escalation_confidence_threshold,

@@ -1,3 +1,4 @@
+import uuid
 from collections import defaultdict
 from collections.abc import Sequence
 
@@ -30,3 +31,8 @@ class InMemoryConversationRepository(ConversationRepository):
             text=text,
         )
         self._store[sender_id].append(conv_msg)
+
+    async def get_conversation_id(self, sender_id: str) -> uuid.UUID | None:
+        import uuid
+
+        return uuid.uuid5(uuid.NAMESPACE_DNS, sender_id)
