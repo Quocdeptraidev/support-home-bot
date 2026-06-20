@@ -330,13 +330,13 @@ Schema chi tiết: `docs/database-schema.md`.
 
 ### Sprint 2 - AI và Telegram escalation
 
-- [ ] OpenAI Responses API adapter.
-- [ ] Structured output schema.
-- [ ] Conversation history repository.
-- [ ] Confidence và safety fallback.
-- [ ] Telegram notifier.
-- [ ] FAQ và booking-intent demo.
-- [ ] Test timeout/provider failure.
+- [x] OpenAI Responses API adapter.
+- [x] Structured output schema.
+- [x] Conversation history repository.
+- [x] Confidence và safety fallback.
+- [x] Telegram notifier.
+- [x] FAQ và booking-intent demo.
+- [x] Test timeout/provider failure.
 
 ### Sprint 3 - Room và booking rules
 

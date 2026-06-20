@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-homestay}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -42,6 +42,7 @@ services:
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://homestay:change_me@db:5432/homestay_support}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      FB_BYPASS_SIGNATURE_VERIFICATION: ${FB_BYPASS_SIGNATURE_VERIFICATION:-false}
       FB_PAGE_ACCESS_TOKEN: ${FB_PAGE_ACCESS_TOKEN:-}
       FB_APP_SECRET: ${FB_APP_SECRET:-}
       FB_VERIFY_TOKEN: ${FB_VERIFY_TOKEN:-}

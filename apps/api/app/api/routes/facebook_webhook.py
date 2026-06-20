@@ -61,11 +61,18 @@ async def receive_facebook_webhook(
         )
 
     raw_body = await request.body()
+
     if not verify_facebook_signature(raw_body, signature, app_secret):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Facebook webhook signature",
-        )
+        if config.fb_bypass_signature_verification:
+            logger.warning(
+                "Facebook signature verification failed, but bypassing because "
+                "FB_BYPASS_SIGNATURE_VERIFICATION=true"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Facebook webhook signature",
+            )
 
     try:
         payload = json.loads(raw_body)

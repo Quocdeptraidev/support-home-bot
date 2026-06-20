@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     redis_idempotency_ttl_seconds: int = Field(default=86400, ge=60)
 
+    fb_bypass_signature_verification: bool = False
     fb_page_access_token: SecretStr = SecretStr("")
     fb_app_secret: SecretStr = SecretStr("")
     fb_verify_token: SecretStr = SecretStr("")

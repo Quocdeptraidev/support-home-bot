@@ -61,7 +61,10 @@ def test_facebook_webhook_verification_rejects_invalid_token() -> None:
 def test_facebook_webhook_event_accepts_valid_signature() -> None:
     app_secret = "app-secret"
     raw_body = b'{"object":"page","entry":[]}'
-    app.dependency_overrides[get_settings] = lambda: Settings(fb_app_secret=SecretStr(app_secret))
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        fb_app_secret=SecretStr(app_secret),
+        fb_bypass_signature_verification=False,
+    )
 
     try:
         response = TestClient(app).post(
@@ -80,7 +83,10 @@ def test_facebook_webhook_event_accepts_valid_signature() -> None:
 
 
 def test_facebook_webhook_event_rejects_invalid_signature() -> None:
-    app.dependency_overrides[get_settings] = lambda: Settings(fb_app_secret=SecretStr("app-secret"))
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        fb_app_secret=SecretStr("app-secret"),
+        fb_bypass_signature_verification=False,
+    )
 
     try:
         response = TestClient(app).post(
@@ -98,7 +104,10 @@ def test_facebook_webhook_event_rejects_invalid_signature() -> None:
 
 
 def test_facebook_webhook_event_requires_configured_app_secret() -> None:
-    app.dependency_overrides[get_settings] = lambda: Settings(fb_app_secret=SecretStr(""))
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        fb_app_secret=SecretStr(""),
+        fb_bypass_signature_verification=False,
+    )
 
     try:
         response = TestClient(app).post(
@@ -115,7 +124,10 @@ def test_facebook_webhook_event_requires_configured_app_secret() -> None:
 def test_facebook_webhook_event_rejects_invalid_json() -> None:
     app_secret = "app-secret"
     raw_body = b'{"object":"page"'
-    app.dependency_overrides[get_settings] = lambda: Settings(fb_app_secret=SecretStr(app_secret))
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        fb_app_secret=SecretStr(app_secret),
+        fb_bypass_signature_verification=False,
+    )
 
     try:
         response = TestClient(app).post(
@@ -136,7 +148,10 @@ def test_facebook_webhook_event_rejects_invalid_json() -> None:
 def test_facebook_webhook_event_rejects_invalid_payload_schema() -> None:
     app_secret = "app-secret"
     raw_body = b'{"object":"page"}'
-    app.dependency_overrides[get_settings] = lambda: Settings(fb_app_secret=SecretStr(app_secret))
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        fb_app_secret=SecretStr(app_secret),
+        fb_bypass_signature_verification=False,
+    )
 
     try:
         response = TestClient(app).post(
@@ -161,7 +176,10 @@ def test_facebook_webhook_event_acknowledges_echo_event() -> None:
         b'"timestamp":1718438400000,"message":{"mid":"echo-123","text":"Echo",'
         b'"is_echo":true}}]}]}'
     )
-    app.dependency_overrides[get_settings] = lambda: Settings(fb_app_secret=SecretStr(app_secret))
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        fb_app_secret=SecretStr(app_secret),
+        fb_bypass_signature_verification=False,
+    )
 
     try:
         response = TestClient(app).post(

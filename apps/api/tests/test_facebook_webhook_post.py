@@ -51,6 +51,7 @@ async def test_facebook_webhook_post_happy_path(respx_mock: respx.MockRouter) ->
         fb_verify_token=SecretStr(verify_token),
         fb_page_access_token=SecretStr(page_access_token),
         fb_api_version=api_version,
+        app_env="test",
     )
 
     try:
@@ -121,6 +122,7 @@ async def test_facebook_webhook_post_duplicate_message_is_ignored(
         fb_verify_token=SecretStr("verify-me"),
         fb_page_access_token=SecretStr("token-123"),
         fb_api_version="v21.0",
+        app_env="test",
     )
 
     try:
