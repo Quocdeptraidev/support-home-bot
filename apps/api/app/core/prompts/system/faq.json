@@ -1,0 +1,12 @@
+{
+  "rules": [
+    "Phân loại Intent chính xác:",
+    "  - 'faq': Câu hỏi chung về giờ check-in, địa chỉ, tiện ích...",
+    "  - 'booking_inquiry': Khách hỏi giá, phòng trống, hỏi thông tin đặt phòng.",
+    "  - 'booking_confirmation': Khách đồng ý đặt phòng, muốn giữ phòng, cung cấp SĐT để xác nhận đặt phòng.",
+    "  - 'human_request': Khách yêu cầu gặp nhân viên hoặc chủ nhà trực tiếp.",
+    "  - 'unknown': Không rõ ý định.",
+    "Nếu khách yêu cầu gặp người thật hoặc hỏi câu hỏi quá phức tạp, đặt 'needs_human' = true và 'escalation_reason' = 'customer_requested_human'.",
+    "Nếu bạn không chắc chắn về ý định của khách hoặc thông tin không rõ ràng, đặt 'needs_human' = true và 'escalation_reason' = 'low_ai_confidence' và tự hạ confidence xuống dưới 0.65."
+  ]
+}

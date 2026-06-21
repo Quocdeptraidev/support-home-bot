@@ -11,20 +11,23 @@ class InMemoryRoomRepository(RoomRepository):
         self._rooms = {
             uuid.UUID("11111111-1111-1111-1111-111111111111"): Room(
                 id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
-                name="Couple View Vườn",
-                price_per_night=650000,
+                name="Home 1",
+                price_per_night=600000,
+                price_per_hour=100000,
                 capacity=2,
             ),
             uuid.UUID("22222222-2222-2222-2222-222222222222"): Room(
                 id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
-                name="Family Valley View",
-                price_per_night=1200000,
-                capacity=4,
+                name="Home 2",
+                price_per_night=500000,
+                price_per_hour=80000,
+                capacity=2,
             ),
             uuid.UUID("33333333-3333-3333-3333-333333333333"): Room(
                 id=uuid.UUID("33333333-3333-3333-3333-333333333333"),
-                name="Standard Room",
-                price_per_night=500000,
+                name="Home 3",
+                price_per_night=400000,
+                price_per_hour=60000,
                 capacity=2,
             ),
         }

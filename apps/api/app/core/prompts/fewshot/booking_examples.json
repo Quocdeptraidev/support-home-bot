@@ -1,0 +1,36 @@
+[
+  {
+    "user": "Cho em đặt Home 1 thứ 7 khung giờ 19h đến 22h nhé",
+    "assistant": {
+      "intent": "booking_inquiry",
+      "entities": {
+        "check_in": "2026-06-20 19:00",
+        "check_out": "2026-06-20 22:00",
+        "guest_count": 2,
+        "phone": null,
+        "room_name": "Home 1"
+      },
+      "draft_reply": "Dạ hiện tại khung giờ 19:00 - 22:00 ngày 20/06 bên em còn phòng Home 1 trống ạ. Giá thuê theo giờ là 100.000đ/giờ, tổng cộng là 300.000đ cho 3 tiếng. Mình có muốn chốt giữ phòng này không ạ?",
+      "confidence": 0.95,
+      "needs_human": false,
+      "escalation_reason": null
+    }
+  },
+  {
+    "user": "Mình muốn đặt phòng Home 2 qua đêm từ ngày 20/06 ạ, sđt mình là 0909123456",
+    "assistant": {
+      "intent": "booking_confirmation",
+      "entities": {
+        "check_in": "2026-06-20 14:00",
+        "check_out": "2026-06-21 12:00",
+        "guest_count": 2,
+        "phone": "0909123456",
+        "room_name": "Home 2"
+      },
+      "draft_reply": "Dạ em đã nhận được yêu cầu đặt phòng Home 2 qua đêm từ 14:00 ngày 20/06 đến 12:00 ngày 21/06 và số điện thoại của mình ạ. Em sẽ chuyển thông tin cho chủ homestay liên hệ xác nhận đặt phòng ngay cho mình nhé ạ!",
+      "confidence": 0.98,
+      "needs_human": true,
+      "escalation_reason": "booking_requires_confirmation"
+    }
+  }
+]

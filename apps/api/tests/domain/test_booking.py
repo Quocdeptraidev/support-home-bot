@@ -1,61 +1,84 @@
 import uuid
-from datetime import date
+from datetime import datetime, UTC
 
 import pytest
 
 from app.domain.booking import (
     Booking,
     BookingStatus,
-    calculate_nights,
-    calculate_total_price,
+    Room,
+    is_overnight_booking,
+    calculate_booking_price,
+    calculate_duration_display,
     check_overlap,
 )
 
 
-def test_calculate_nights_happy_path() -> None:
-    check_in = date(2026, 6, 20)
-    check_out = date(2026, 6, 22)
-    assert calculate_nights(check_in, check_out) == 2
+def test_is_overnight_booking() -> None:
+    # Overnight: different dates
+    check_in = datetime(2026, 6, 20, 14, 0, tzinfo=UTC)
+    check_out = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
+    assert is_overnight_booking(check_in, check_out) is True
+
+    # Overnight: same date but >= 12 hours
+    check_in_same = datetime(2026, 6, 20, 8, 0, tzinfo=UTC)
+    check_out_same = datetime(2026, 6, 20, 20, 0, tzinfo=UTC)
+    assert is_overnight_booking(check_in_same, check_out_same) is True
+
+    # Hourly: same date and < 12 hours
+    check_in_hourly = datetime(2026, 6, 20, 19, 0, tzinfo=UTC)
+    check_out_hourly = datetime(2026, 6, 20, 22, 0, tzinfo=UTC)
+    assert is_overnight_booking(check_in_hourly, check_out_hourly) is False
 
 
-def test_calculate_nights_invalid_range() -> None:
-    check_in = date(2026, 6, 22)
-    check_out = date(2026, 6, 20)
-    with pytest.raises(ValueError, match="check_out must be after check_in"):
-        calculate_nights(check_in, check_out)
+def test_calculate_booking_price() -> None:
+    room = Room(
+        id=uuid.uuid4(),
+        name="Home 1",
+        price_per_night=600000,
+        price_per_hour=100000,
+        capacity=2,
+    )
+
+    # Overnight (1 night)
+    check_in = datetime(2026, 6, 20, 14, 0, tzinfo=UTC)
+    check_out = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
+    assert calculate_booking_price(room, check_in, check_out) == 600000
+
+    # Hourly (3 hours)
+    check_in_hourly = datetime(2026, 6, 20, 19, 0, tzinfo=UTC)
+    check_out_hourly = datetime(2026, 6, 20, 22, 0, tzinfo=UTC)
+    assert calculate_booking_price(room, check_in_hourly, check_out_hourly) == 300000
+
+    # Hourly (minimum 2 hours enforced)
+    check_in_short = datetime(2026, 6, 20, 19, 0, tzinfo=UTC)
+    check_out_short = datetime(2026, 6, 20, 20, 0, tzinfo=UTC)
+    assert calculate_booking_price(room, check_in_short, check_out_short) == 200000
 
 
-def test_calculate_total_price() -> None:
-    assert calculate_total_price(650000, 2) == 1300000
+def test_calculate_duration_display() -> None:
+    # Overnight
+    check_in = datetime(2026, 6, 20, 14, 0, tzinfo=UTC)
+    check_out = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
+    assert calculate_duration_display(check_in, check_out) == "1 đêm"
 
-
-def test_calculate_total_price_invalid() -> None:
-    with pytest.raises(ValueError):
-        calculate_total_price(-1, 2)
-    with pytest.raises(ValueError):
-        calculate_total_price(100, -2)
+    # Hourly
+    check_in_hourly = datetime(2026, 6, 20, 19, 0, tzinfo=UTC)
+    check_out_hourly = datetime(2026, 6, 20, 22, 0, tzinfo=UTC)
+    assert calculate_duration_display(check_in_hourly, check_out_hourly) == "3 tiếng"
 
 
 def test_check_overlap() -> None:
-    # Overlapping intervals
-    # Case 1: b1: [20, 22), b2: [21, 23)
-    assert check_overlap(date(2026, 6, 20), date(2026, 6, 22), date(2026, 6, 21), date(2026, 6, 23))
-
-    # Case 2: b1: [21, 23), b2: [20, 22)
-    assert check_overlap(date(2026, 6, 21), date(2026, 6, 23), date(2026, 6, 20), date(2026, 6, 22))
-
-    # Case 3: b1: [20, 25), b2: [21, 22)
-    assert check_overlap(date(2026, 6, 20), date(2026, 6, 25), date(2026, 6, 21), date(2026, 6, 22))
-
-    # Non-overlapping intervals
-    # Case 4: b1: [20, 22), b2: [22, 24)
-    assert not check_overlap(
-        date(2026, 6, 20), date(2026, 6, 22), date(2026, 6, 22), date(2026, 6, 24)
+    # Overlapping
+    assert check_overlap(
+        datetime(2026, 6, 20, 14, 0), datetime(2026, 6, 20, 17, 0),
+        datetime(2026, 6, 20, 16, 0), datetime(2026, 6, 20, 18, 0)
     )
 
-    # Case 5: b1: [22, 24), b2: [20, 22)
+    # Non-overlapping
     assert not check_overlap(
-        date(2026, 6, 22), date(2026, 6, 24), date(2026, 6, 20), date(2026, 6, 22)
+        datetime(2026, 6, 20, 14, 0), datetime(2026, 6, 20, 16, 0),
+        datetime(2026, 6, 20, 16, 0), datetime(2026, 6, 20, 18, 0)
     )
 
 
@@ -69,11 +92,11 @@ def test_booking_validation() -> None:
         id=bid,
         conversation_id=cid,
         room_id=rid,
-        check_in=date(2026, 6, 20),
-        check_out=date(2026, 6, 22),
+        check_in=datetime(2026, 6, 20, 14, 0, tzinfo=UTC),
+        check_out=datetime(2026, 6, 21, 12, 0, tzinfo=UTC),
         guest_count=2,
         phone="0909123456",
-        total_price=1300000,
+        total_price=600000,
         status=BookingStatus.PENDING,
     )
     assert booking.guest_count == 2
@@ -85,11 +108,11 @@ def test_booking_validation() -> None:
             id=bid,
             conversation_id=cid,
             room_id=rid,
-            check_in=date(2026, 6, 22),
-            check_out=date(2026, 6, 20),
+            check_in=datetime(2026, 6, 20, 14, 0, tzinfo=UTC),
+            check_out=datetime(2026, 6, 20, 13, 0, tzinfo=UTC),
             guest_count=2,
             phone="0909123456",
-            total_price=1300000,
+            total_price=600000,
         )
 
     # Invalid guest count
@@ -98,9 +121,9 @@ def test_booking_validation() -> None:
             id=bid,
             conversation_id=cid,
             room_id=rid,
-            check_in=date(2026, 6, 20),
-            check_out=date(2026, 6, 22),
+            check_in=datetime(2026, 6, 20, 14, 0, tzinfo=UTC),
+            check_out=datetime(2026, 6, 21, 12, 0, tzinfo=UTC),
             guest_count=0,
             phone="0909123456",
-            total_price=1300000,
+            total_price=600000,
         )

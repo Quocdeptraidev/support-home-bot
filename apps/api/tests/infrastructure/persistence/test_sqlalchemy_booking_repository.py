@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -21,6 +21,13 @@ async def db_session() -> AsyncSession:
     transaction = await connection.begin()
 
     session = AsyncSession(bind=connection)
+
+    # Dọn dẹp dữ liệu cũ để tránh ảnh hưởng chéo giữa các lần chạy test
+    from sqlalchemy import delete
+    from app.db.models import BookingModel, ConversationModel
+    await session.execute(delete(BookingModel))
+    await session.execute(delete(ConversationModel))
+    await session.commit()
 
     yield session
 
@@ -46,7 +53,7 @@ async def test_sqlalchemy_booking_repo_create_and_get_active(db_session: AsyncSe
     db_session.add(conv)
     await db_session.commit()
 
-    # 2. Use a seeded room ID (Couple View Vườn ID: 11111111-1111-1111-1111-111111111111)
+    # 2. Use a seeded room ID (Home 1 ID: 11111111-1111-1111-1111-111111111111)
     room_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
     repo = SqlAlchemyBookingRepository(db_session)
 
@@ -55,11 +62,11 @@ async def test_sqlalchemy_booking_repo_create_and_get_active(db_session: AsyncSe
         id=uuid.uuid4(),
         conversation_id=conv_id,
         room_id=room_id,
-        check_in=date(2026, 6, 20),
-        check_out=date(2026, 6, 22),
+        check_in=datetime(2026, 6, 20, 14, 0, tzinfo=UTC),
+        check_out=datetime(2026, 6, 22, 12, 0, tzinfo=UTC),
         guest_count=2,
         phone="0909123456",
-        total_price=1300000,
+        total_price=1200000,
         status=BookingStatus.PENDING,
     )
     saved = await repo.create(booking)
@@ -77,11 +84,11 @@ async def test_sqlalchemy_booking_repo_create_and_get_active(db_session: AsyncSe
         id=uuid.uuid4(),
         conversation_id=conv_id,
         room_id=room_id,
-        check_in=date(2026, 6, 25),
-        check_out=date(2026, 6, 27),
+        check_in=datetime(2026, 6, 25, 14, 0, tzinfo=UTC),
+        check_out=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
         guest_count=2,
         phone="0909123456",
-        total_price=1300000,
+        total_price=1200000,
         status=BookingStatus.CANCELED,
     )
     await repo.create(canceled_booking)

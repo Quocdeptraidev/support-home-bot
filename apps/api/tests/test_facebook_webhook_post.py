@@ -99,14 +99,14 @@ async def test_facebook_webhook_post_happy_path(respx_mock: respx.MockRouter) ->
         assert last_request.headers["Authorization"] == f"Bearer {page_access_token}"
         req_body = json.loads(last_request.read().decode())
         assert req_body["recipient"]["id"] == "user-456"
-        assert "Giá phòng tuỳ loại từ 650.000đ" in req_body["message"]["text"]
+        assert "Giá phòng tuỳ loại từ 400.000đ" in req_body["message"]["text"]
 
         history = await _conversation_repository.get_recent("user-456", 10)
         assert len(history) == 2
         assert history[0].role == MessageRole.CUSTOMER
         assert history[0].text == "Giá phòng bên mình thế nào ạ?"
         assert history[1].role == MessageRole.BOT
-        assert "Giá phòng tuỳ loại từ 650.000đ" in history[1].text
+        assert "Giá phòng tuỳ loại từ 400.000đ" in history[1].text
 
     finally:
         app.dependency_overrides.clear()

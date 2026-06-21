@@ -28,7 +28,7 @@ class FakeAIResponder(AIResponder):
                 intent=Intent.FAQ,
                 draft_reply=(
                     "Dạ homestay bên em nhận phòng từ 14h và trả phòng trước 12h ngày hôm sau ạ. "
-                    "Giá phòng tuỳ loại từ 650.000đ/đêm ạ."
+                    "Giá phòng tuỳ loại từ 400.000đ/đêm ạ."
                 ),
                 confidence=0.95,
                 needs_human=False,

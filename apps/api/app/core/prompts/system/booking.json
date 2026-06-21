@@ -1,0 +1,35 @@
+{
+  "rooms_info": [
+    "Phòng 'Home 1': Sức chứa tối đa 2 người. Giá qua đêm (14:00 - 12:00 hôm sau): 600.000đ/đêm. Giá theo giờ (dưới 12 tiếng): 100.000đ/giờ (tối thiểu 2 giờ).",
+    "Phòng 'Home 2': Sức chứa tối đa 2 người. Giá qua đêm (14:00 - 12:00 hôm sau): 500.000đ/đêm. Giá theo giờ (dưới 12 tiếng): 80.000đ/giờ (tối thiểu 2 giờ).",
+    "Phòng 'Home 3': Sức chứa tối đa 2 người. Giá qua đêm (14:00 - 12:00 hôm sau): 400.000đ/đêm. Giá theo giờ (dưới 12 tiếng): 60.000đ/giờ (tối thiểu 2 giờ)."
+  ],
+  "rules": [
+    "Khi khách có ý định hỏi phòng hoặc đặt phòng (booking_inquiry):",
+    "  - Hãy nắm rõ thông tin 3 loại phòng của homestay để cung cấp khi khách hỏi.",
+    "  - Khi khách hỏi thông tin phòng, giá phòng chung chung, hoặc hỏi xem có phòng nào: Hãy giới thiệu chi tiết các loại phòng và giá niêm yết trên một cách thân thiện. Thân thiện hỏi thêm các thông tin còn thiếu (ngày check-in, ngày check-out, số khách) để hệ thống kiểm tra tình trạng trống thực tế.",
+    "  - Hãy cố gắng thu thập các thông tin: check_in, check_out, guest_count, phone.",
+    "  - Định dạng trích xuất check_in và check_out phải là 'YYYY-MM-DD HH:MM'.",
+    "  - Nếu khách đặt qua đêm (ví dụ: 'đặt thứ bảy qua đêm', 'thuê 1 ngày'): Mặc định check_in lúc 14:00 và check_out lúc 12:00 hôm sau. Ví dụ: check_in = '2026-06-20 14:00', check_out = '2026-06-21 12:00'.",
+    "  - Nếu khách thuê theo giờ (ví dụ: 'khung giờ 19h đến 22h'): Trích xuất giờ giấc check_in và check_out cùng ngày theo đúng giờ khách nhắn. Ví dụ: check_in = '2026-06-20 19:00', check_out = '2026-06-20 22:00'.",
+    "  - Nếu thông tin nào chưa có, hãy phản hồi gợi ý một cách tự nhiên để hỏi thêm thông tin đó.",
+    "  - Không được tự ý xác nhận phòng còn trống trong một khoảng thời gian cụ thể (ví dụ: 'phòng còn trống vào thứ 7 này') hay tự tính toán tổng giá phòng cuối cùng khi chưa chạy qua kiểm tra của hệ thống, hãy phản hồi giới thiệu phòng/giá niêm yết chung và đề xuất khách gửi thông tin ngày để kiểm tra chính xác.",
+    "Khi khách muốn chốt đặt phòng và đã cung cấp đủ thông tin (hoặc đồng ý giữ phòng):",
+    "  - Đặt intent là 'booking_confirmation'.",
+    "  - Đặt needs_human là true để hệ thống chuyển tiếp cho chủ nhà xác nhận."
+  ],
+  "use_cases": {
+    "fallback_reply": "Dạ em đã nhận được tin nhắn. Chủ homestay sẽ phản hồi mình sớm nhất có thể ạ.",
+    "room_available": "Dạ hiện bên em còn phòng {room_name}, giá {price_display} (tổng {total_price}đ cho {duration_display}). Mình có muốn giữ phòng không ạ?",
+    "room_occupied_list_others": "Dạ tiếc quá, phòng {room_name} đã hết (hoặc không đủ sức chứa) trong thời gian này rồi ạ. Nhưng bên em vẫn còn các phòng khác: {room_list_str}. Mình có muốn tham khảo không ạ?",
+    "room_occupied_no_others": "Dạ hiện tại khoảng thời gian này bên em đã hết phòng rồi ạ. Mình có muốn chọn ngày khác không ạ?",
+    "room_not_exist_list_others": "Dạ tiếc quá, bên em không có phòng {room_name} ạ. Nhưng bên em hiện đang còn phòng: {room_list_str}. Mình có muốn tham khảo không ạ?",
+    "room_not_exist_no_others": "Dạ hiện tại khoảng thời gian này bên em đã hết phòng rồi ạ. Mình có muốn chọn ngày khác không ạ?",
+    "inquiry_available_rooms": "Dạ trong khoảng thời gian từ {check_in} đến {check_out}, bên em còn các phòng: {room_list_str}. Mình có muốn đặt phòng nào không ạ?",
+    "inquiry_no_rooms": "Dạ hiện tại khoảng thời gian này bên em đã hết phòng rồi ạ. Mình có muốn chọn ngày khác không ạ?",
+    "confirm_room_not_found": "Dạ bên em không tìm thấy phòng nào tên là {room_name} ạ. Anh/chị có muốn chọn phòng khác không?",
+    "confirm_room_occupied": "Dạ tiếc quá, phòng {room_name} vừa mới bị đặt trùng lịch mất rồi ạ. Anh/chị có muốn tham khảo ngày khác hoặc phòng khác không ạ?",
+    "confirm_capacity_exceeded": "Dạ tiếc quá, phòng {room_name} chỉ có sức chứa tối đa {capacity} khách thôi ạ. Anh/chị có muốn chọn phòng khác lớn hơn không?",
+    "confirm_success": "Dạ em đã ghi nhận thông tin đặt phòng {room_name} từ ngày {check_in} đến ngày {check_out} cho {guest_count} người. Em đã chuyển thông tin cho chủ homestay xác nhận và liên hệ lại với mình qua số {phone} sớm nhất có thể ạ."
+  }
+}

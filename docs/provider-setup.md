@@ -65,3 +65,26 @@ Meta cần callback HTTPS truy cập được từ internet. Ở local có thể
 phê duyệt cho dự án. Không ghi URL tunnel cố định vào source; callback URL thuộc
 cấu hình môi trường triển khai.
 
+## Google Calendar
+
+Để tích hợp và tự động điền lịch Google Calendar khi có khách đặt phòng:
+
+1. **Tạo Google Cloud Project**: Truy cập [Google Cloud Console](https://console.cloud.google.com/) và tạo một project mới.
+2. **Kích hoạt Google Calendar API**: Vào thư viện API, tìm kiếm "Google Calendar API" và kích hoạt (Enable).
+3. **Tạo Service Account & Key**:
+   - Truy cập **IAM & Admin** -> **Service Accounts**.
+   - Chọn **Create Service Account**, điền thông tin và nhấn hoàn thành.
+   - Nhấp vào Service Account vừa tạo, chọn tab **Keys** -> **Add Key** -> **Create new key** (chọn định dạng JSON).
+   - Tải file JSON key về máy.
+4. **Cấu hình Google Calendar (Chia sẻ lịch)**:
+   - Truy cập [Google Calendar](https://calendar.google.com/).
+   - Tạo một lịch mới (ví dụ: Lịch Đặt Phòng) hoặc chọn lịch hiện có của bạn.
+   - Vào **Settings and sharing** của lịch đó.
+   - Tại mục **Integrate calendar**, copy **Calendar ID** (thường có định dạng: `xxxx@group.calendar.google.com` hoặc email của bạn).
+   - Tại mục **Share with specific people or groups**, chọn **Add people and groups**, dán địa chỉ email của Service Account vừa tạo (dạng `xxxx@xxxx.iam.gserviceaccount.com`).
+   - Phân quyền (Permissions) là: **Make changes to events** (để bot có quyền tạo/sửa sự kiện).
+5. **Cấu hình biến môi trường trong `.env`**:
+   - `GOOGLE_CALENDAR_ID`: Dán Calendar ID lấy ở Bước 4.
+   - `GOOGLE_SERVICE_ACCOUNT_INFO`: Dán toàn bộ nội dung của file JSON key lấy ở Bước 3 (chuyển đổi toàn bộ JSON thành một chuỗi duy nhất trên một dòng).
+
+

@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     telegram_api_base_url: str = "https://api.telegram.org"
     telegram_request_timeout_seconds: float = Field(default=10, gt=0)
 
+    google_calendar_id: str | None = None
+    google_service_account_info: SecretStr | None = None
+
     fb_api_rate_limit: int = Field(default=200, ge=1)
     fb_api_rate_window_seconds: int = Field(default=3600, ge=1)
 
