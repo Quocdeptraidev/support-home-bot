@@ -25,6 +25,7 @@ class SqlAlchemyBookingRepository(BookingRepository):
             phone=model.phone,
             total_price=model.total_price,
             status=BookingStatus(model.status),
+            google_calendar_event_id=model.google_calendar_event_id,
         )
 
     async def create(self, booking: Booking) -> Booking:
@@ -39,13 +40,13 @@ class SqlAlchemyBookingRepository(BookingRepository):
             phone=booking.phone,
             total_price=booking.total_price,
             status=booking.status.value,
+            google_calendar_event_id=booking.google_calendar_event_id,
             created_at=now_utc,
             updated_at=now_utc,
         )
         self._session.add(model)
-        entity = self._map_model_to_entity(model)
         await self._session.commit()
-        return entity
+        return booking
 
     async def get_active_bookings_by_room(self, room_id: uuid.UUID) -> Sequence[Booking]:
         stmt = select(BookingModel).where(
@@ -55,3 +56,26 @@ class SqlAlchemyBookingRepository(BookingRepository):
         result = await self._session.execute(stmt)
         models = result.scalars().all()
         return [self._map_model_to_entity(m) for m in models]
+
+    async def get_by_id(self, booking_id: uuid.UUID) -> Booking | None:
+        stmt = select(BookingModel).where(BookingModel.id == booking_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if not model:
+            return None
+        return self._map_model_to_entity(model)
+
+    async def update(self, booking: Booking) -> Booking:
+        stmt = select(BookingModel).where(BookingModel.id == booking.id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if not model:
+            raise ValueError(f"Booking with id {booking.id} not found")
+        
+        model.status = booking.status.value
+        model.google_calendar_event_id = booking.google_calendar_event_id
+        model.updated_at = datetime.now(UTC)
+        
+        self._session.add(model)
+        await self._session.commit()
+        return booking

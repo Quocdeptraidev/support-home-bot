@@ -19,3 +19,10 @@ class InMemoryBookingRepository(BookingRepository):
             for b in self._bookings.values()
             if b.room_id == room_id and b.status != BookingStatus.CANCELED
         ]
+
+    async def get_by_id(self, booking_id: uuid.UUID) -> Booking | None:
+        return self._bookings.get(booking_id)
+
+    async def update(self, booking: Booking) -> Booking:
+        self._bookings[booking.id] = booking
+        return booking

@@ -57,6 +57,7 @@ class GoogleCalendarAdapter(CalendarGateway):
         start_time: datetime,
         end_time: datetime,
         description: str,
+        color_id: str | None = None,
     ) -> str | None:
         try:
             access_token = await self._get_access_token()
@@ -81,6 +82,8 @@ class GoogleCalendarAdapter(CalendarGateway):
                 "dateTime": end_time.isoformat(),
             },
         }
+        if color_id:
+            payload["colorId"] = color_id
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
@@ -88,7 +91,7 @@ class GoogleCalendarAdapter(CalendarGateway):
                 if response.status_code == 200:
                     event_data = response.json()
                     event_id = event_data.get("id")
-                    logger.info("Successfully created Google Calendar Event. ID: %s", event_id)
+                    logger.info("Successfully created Google Calendar Event with color %s. ID: %s", color_id, event_id)
                     return event_id
                 else:
                     logger.error(
@@ -100,3 +103,38 @@ class GoogleCalendarAdapter(CalendarGateway):
             logger.error("Failed to call Google Calendar API: %s", e, exc_info=True)
 
         return None
+
+    async def update_event_title(self, *, event_id: str, new_title: str, color_id: str | None = None) -> bool:
+        try:
+            access_token = await self._get_access_token()
+        except Exception as e:
+            logger.error("Failed to authenticate with Google to update event: %s", e)
+            return False
+
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{self._calendar_id}/events/{event_id}"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "summary": new_title,
+        }
+        if color_id:
+            payload["colorId"] = color_id
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+                response = await client.patch(url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    logger.info("Successfully updated Google Calendar Event title and color %s. ID: %s", color_id, event_id)
+                    return True
+                else:
+                    logger.error(
+                        "Google Calendar API returned error status %d on update: %s",
+                        response.status_code,
+                        response.text,
+                    )
+        except Exception as e:
+            logger.error("Failed to update Google Calendar API: %s", e, exc_info=True)
+
+        return False

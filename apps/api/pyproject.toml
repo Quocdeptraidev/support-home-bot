@@ -38,6 +38,7 @@ include = ["app*"]
 addopts = "-q"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

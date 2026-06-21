@@ -1,6 +1,6 @@
+import json
 from collections.abc import AsyncGenerator
 from functools import lru_cache
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.use_cases.process_incoming_message import ProcessIncomingMessage
+from app.application.use_cases.process_telegram_callback import ProcessTelegramCallback
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal, get_db
 from app.domain.ports import (
@@ -24,6 +25,8 @@ from app.domain.ports import (
 from app.infrastructure.ai.fake_ai_responder import FakeAIResponder
 from app.infrastructure.ai.openai_conversation_responder import OpenAIConversationResponder
 from app.infrastructure.cache.redis_idempotency_store import RedisIdempotencyStore
+from app.infrastructure.calendar.fake_calendar_adapter import FakeCalendarAdapter
+from app.infrastructure.calendar.google_calendar_adapter import GoogleCalendarAdapter
 from app.infrastructure.messaging.meta_message_gateway import MetaMessageGateway
 from app.infrastructure.notifications.fake_escalation_notifier import FakeEscalationNotifier
 from app.infrastructure.notifications.telegram_escalation_notifier import (
@@ -42,9 +45,6 @@ from app.infrastructure.persistence.sqlalchemy_conversation_repository import (
 )
 from app.infrastructure.persistence.sqlalchemy_room_repository import SqlAlchemyRoomRepository
 
-from app.infrastructure.calendar.fake_calendar_adapter import FakeCalendarAdapter
-from app.infrastructure.calendar.google_calendar_adapter import GoogleCalendarAdapter
-
 # Singletons for mock/in-memory components to preserve state across requests in tests
 _conversation_repository = InMemoryConversationRepository()
 _ai_responder = FakeAIResponder()
@@ -59,10 +59,7 @@ def load_prompts() -> dict:
     current_dir = Path(__file__).resolve().parent
     prompts_dir = current_dir.parent / "core" / "prompts"
 
-    prompts = {
-        "system": {},
-        "fewshot": {}
-    }
+    prompts = {"system": {}, "fewshot": {}}
 
     # Nạp các file system prompts
     system_dir = prompts_dir / "system"
@@ -147,20 +144,28 @@ async def get_ai_responder(
     if receptionist.get("identity"):
         system_parts.append(receptionist["identity"])
     if receptionist.get("rules"):
-        system_parts.append("Quy định hoạt động:\n" + "\n".join(f"- {r}" for r in receptionist["rules"]))
+        system_parts.append(
+            "Quy định hoạt động:\n" + "\n".join(f"- {r}" for r in receptionist["rules"])
+        )
 
     # 2. Booking rules
     booking_parts = []
     if booking.get("rooms_info"):
-        booking_parts.append("Thông tin các loại phòng:\n" + "\n".join(f"  {r}" for r in booking["rooms_info"]))
+        booking_parts.append(
+            "Thông tin các loại phòng:\n" + "\n".join(f"  {r}" for r in booking["rooms_info"])
+        )
     if booking.get("rules"):
-        booking_parts.append("Quy định đặt phòng:\n" + "\n".join(f"  {r}" for r in booking["rules"]))
+        booking_parts.append(
+            "Quy định đặt phòng:\n" + "\n".join(f"  {r}" for r in booking["rules"])
+        )
     if booking_parts:
         system_parts.append("Về đặt phòng (booking_inquiry):\n" + "\n".join(booking_parts))
 
     # 3. FAQ & Intent rules
     if faq.get("rules"):
-        system_parts.append("Về FAQ và phân loại Intent:\n" + "\n".join(f"- {r}" for r in faq["rules"]))
+        system_parts.append(
+            "Về FAQ và phân loại Intent:\n" + "\n".join(f"- {r}" for r in faq["rules"])
+        )
 
     # 4. Few-shot examples
     if fewshot:
@@ -171,7 +176,9 @@ async def get_ai_responder(
                 f"Khách: {example.get('user')}\n"
                 f"AI Trả về JSON: {json.dumps(example.get('assistant'), ensure_ascii=False, indent=2)}"
             )
-        system_parts.append("Các ví dụ mẫu để bạn học theo (Few-shot Examples):\n" + "\n\n".join(fewshot_parts))
+        system_parts.append(
+            "Các ví dụ mẫu để bạn học theo (Few-shot Examples):\n" + "\n\n".join(fewshot_parts)
+        )
 
     system_prompt = "\n\n".join(system_parts)
 
@@ -255,4 +262,24 @@ async def get_process_incoming_message_use_case(
         idempotency_ttl_seconds=settings.redis_idempotency_ttl_seconds,
         escalation_threshold=settings.ai_escalation_confidence_threshold,
         prompts=use_case_prompts,
+    )
+
+
+async def get_process_telegram_callback_use_case(
+    booking_repository: Annotated[BookingRepository, Depends(get_booking_repository)],
+    room_repository: Annotated[RoomRepository, Depends(get_room_repository)],
+    conversation_repository: Annotated[
+        ConversationRepository, Depends(get_conversation_repository)
+    ],
+    calendar_gateway: Annotated[CalendarGateway, Depends(get_calendar_gateway)],
+    message_gateway: Annotated[MessageGateway, Depends(get_message_gateway)],
+    escalation_notifier: Annotated[EscalationNotifier, Depends(get_escalation_notifier)],
+) -> ProcessTelegramCallback:
+    return ProcessTelegramCallback(
+        booking_repository=booking_repository,
+        room_repository=room_repository,
+        conversation_repository=conversation_repository,
+        calendar_gateway=calendar_gateway,
+        message_gateway=message_gateway,
+        escalation_notifier=escalation_notifier,
     )

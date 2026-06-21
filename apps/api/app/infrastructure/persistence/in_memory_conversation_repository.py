@@ -9,6 +9,7 @@ from app.domain.ports import ConversationRepository
 class InMemoryConversationRepository(ConversationRepository):
     def __init__(self) -> None:
         self._store: dict[str, list[ConversationMessage]] = defaultdict(list)
+        self._conv_to_user: dict[uuid.UUID, str] = {}
 
     async def get_recent(
         self,
@@ -35,4 +36,9 @@ class InMemoryConversationRepository(ConversationRepository):
     async def get_conversation_id(self, sender_id: str) -> uuid.UUID | None:
         import uuid
 
-        return uuid.uuid5(uuid.NAMESPACE_DNS, sender_id)
+        conv_id = uuid.uuid5(uuid.NAMESPACE_DNS, sender_id)
+        self._conv_to_user[conv_id] = sender_id
+        return conv_id
+
+    async def get_external_user_id(self, conversation_id: uuid.UUID) -> str | None:
+        return self._conv_to_user.get(conversation_id)

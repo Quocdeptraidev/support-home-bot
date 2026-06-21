@@ -199,6 +199,7 @@ class BookingModel(Base):
     status: Mapped[str] = mapped_column(
         String(20), default="pending", nullable=False
     )  # "pending", "confirmed", "canceled"
+    google_calendar_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

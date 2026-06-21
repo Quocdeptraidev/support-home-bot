@@ -31,6 +31,7 @@ class Booking:
     phone: str
     total_price: int
     status: BookingStatus = BookingStatus.PENDING
+    google_calendar_event_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.check_out <= self.check_in:
