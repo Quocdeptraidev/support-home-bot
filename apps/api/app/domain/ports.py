@@ -54,3 +54,17 @@ class RoomRepository(Protocol):
 class BookingRepository(Protocol):
     async def create(self, booking: Booking) -> Booking: ...
     async def get_active_bookings_by_room(self, room_id: uuid.UUID) -> Sequence[Booking]: ...
+
+
+from datetime import datetime
+
+
+class CalendarGateway(Protocol):
+    async def create_event(
+        self,
+        *,
+        title: str,
+        start_time: datetime,
+        end_time: datetime,
+        description: str,
+    ) -> str | None: ...

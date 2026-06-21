@@ -25,3 +25,8 @@ redis_data/
 # Agents rules
 .agents/
 
+# Python build artifacts
+*.egg-info/
+build/
+dist/
+

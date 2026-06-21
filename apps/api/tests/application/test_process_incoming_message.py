@@ -1,6 +1,7 @@
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from app.application.use_cases.process_incoming_message import ProcessIncomingMessage
 from app.domain.booking import Booking, BookingStatus, Room
@@ -13,6 +14,8 @@ from app.domain.messaging import (
     IncomingMessage,
     Intent,
 )
+
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 class FakeAIResponder:
@@ -107,13 +110,35 @@ class FakeBookingRepository:
         ]
 
 
+class FakeCalendarGateway:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+
+    async def create_event(
+        self,
+        *,
+        title: str,
+        start_time: datetime,
+        end_time: datetime,
+        description: str,
+    ) -> str | None:
+        self.events.append({
+            "title": title,
+            "start_time": start_time,
+            "end_time": end_time,
+            "description": description,
+        })
+        return "event-id-123"
+
+
 async def test_booking_confirmation_is_saved_replied_and_escalated() -> None:
     conversation_repository = FakeConversationRepository()
     message_gateway = FakeMessageGateway()
     notifier = FakeEscalationNotifier()
+    calendar_gateway = FakeCalendarGateway()
 
     room_id = uuid.uuid4()
-    room = Room(id=room_id, name="Couple View Vườn", price_per_night=650000, capacity=2)
+    room = Room(id=room_id, name="Home 1", price_per_night=600000, price_per_hour=100000, capacity=2)
     room_repository = FakeRoomRepository([room])
     booking_repository = FakeBookingRepository([])
 
@@ -132,11 +157,11 @@ async def test_booking_confirmation_is_saved_replied_and_escalated() -> None:
                 confidence=0.98,
                 needs_human=False,
                 entities=ExtractedEntities(
-                    check_in=date(2026, 6, 20),
-                    check_out=date(2026, 6, 22),
+                    check_in=datetime(2026, 6, 20, 14, 0, tzinfo=VN_TZ),
+                    check_out=datetime(2026, 6, 22, 12, 0, tzinfo=VN_TZ),
                     guest_count=2,
                     phone="0909123456",
-                    room_name="Couple View Vườn",
+                    room_name="Home 1",
                 ),
             )
         ),
@@ -146,6 +171,7 @@ async def test_booking_confirmation_is_saved_replied_and_escalated() -> None:
         escalation_notifier=notifier,
         room_repository=room_repository,
         booking_repository=booking_repository,
+        calendar_gateway=calendar_gateway,
         history_limit=10,
         idempotency_ttl_seconds=86400,
         escalation_threshold=0.65,
@@ -157,21 +183,29 @@ async def test_booking_confirmation_is_saved_replied_and_escalated() -> None:
     assert result.escalated is True
     assert conversation_repository.incoming == [message]
     # Check that the reply was overridden by the deterministic business rule
-    assert "Dạ em đã ghi nhận thông tin đặt phòng Couple View Vườn" in message_gateway.sent[0][1]
+    assert "Dạ em đã ghi nhận thông tin đặt phòng Home 1" in message_gateway.sent[0][1]
     assert "0909123456" in message_gateway.sent[0][1]
+    assert "14h 20/06" in message_gateway.sent[0][1]
+    assert "12h 22/06" in message_gateway.sent[0][1]
     assert notifier.notices[0].reason is EscalationReason.BOOKING_REQUIRES_CONFIRMATION
     assert len(booking_repository.bookings) == 1
     assert booking_repository.bookings[0].status == BookingStatus.PENDING
-    assert booking_repository.bookings[0].total_price == 1300000
+    assert booking_repository.bookings[0].total_price == 1200000
+    
+    # Assert calendar event is created
+    assert len(calendar_gateway.events) == 1
+    assert calendar_gateway.events[0]["title"] == "[ĐẶT PHÒNG PENDING] Home 1 - SĐT: 0909123456"
+    assert "Home 1" in calendar_gateway.events[0]["description"]
 
 
 async def test_booking_inquiry_shows_available_rooms() -> None:
     conversation_repository = FakeConversationRepository()
     message_gateway = FakeMessageGateway()
     notifier = FakeEscalationNotifier()
+    calendar_gateway = FakeCalendarGateway()
 
-    r1 = Room(id=uuid.uuid4(), name="Couple View Vườn", price_per_night=650000, capacity=2)
-    r2 = Room(id=uuid.uuid4(), name="Family Valley View", price_per_night=1200000, capacity=4)
+    r1 = Room(id=uuid.uuid4(), name="Home 1", price_per_night=600000, price_per_hour=100000, capacity=2)
+    r2 = Room(id=uuid.uuid4(), name="Home 2", price_per_night=500000, price_per_hour=80000, capacity=2)
     room_repository = FakeRoomRepository([r1, r2])
     booking_repository = FakeBookingRepository([])
 
@@ -190,8 +224,8 @@ async def test_booking_inquiry_shows_available_rooms() -> None:
                 confidence=0.95,
                 needs_human=False,
                 entities=ExtractedEntities(
-                    check_in=date(2026, 6, 20),
-                    check_out=date(2026, 6, 22),
+                    check_in=datetime(2026, 6, 20, 14, 0, tzinfo=VN_TZ),
+                    check_out=datetime(2026, 6, 22, 12, 0, tzinfo=VN_TZ),
                     guest_count=2,
                 ),
             )
@@ -202,6 +236,7 @@ async def test_booking_inquiry_shows_available_rooms() -> None:
         escalation_notifier=notifier,
         room_repository=room_repository,
         booking_repository=booking_repository,
+        calendar_gateway=calendar_gateway,
         history_limit=10,
         idempotency_ttl_seconds=86400,
         escalation_threshold=0.65,
@@ -209,14 +244,17 @@ async def test_booking_inquiry_shows_available_rooms() -> None:
 
     result = await use_case.execute(message)
     assert result.reply_sent is True
-    assert "Couple View Vườn" in message_gateway.sent[0][1]
-    assert "Family Valley View" in message_gateway.sent[0][1]
+    assert "Home 1" in message_gateway.sent[0][1]
+    assert "Home 2" in message_gateway.sent[0][1]
+    assert "600.000đ/đêm" in message_gateway.sent[0][1]
+    assert "500.000đ/đêm" in message_gateway.sent[0][1]
 
 
 async def test_duplicate_event_has_no_side_effect() -> None:
     conversation_repository = FakeConversationRepository()
     message_gateway = FakeMessageGateway()
     notifier = FakeEscalationNotifier()
+    calendar_gateway = FakeCalendarGateway()
     use_case = ProcessIncomingMessage(
         ai_responder=FakeAIResponder(
             AIDecision(
@@ -232,6 +270,7 @@ async def test_duplicate_event_has_no_side_effect() -> None:
         escalation_notifier=notifier,
         room_repository=FakeRoomRepository(),
         booking_repository=FakeBookingRepository(),
+        calendar_gateway=calendar_gateway,
         history_limit=10,
         idempotency_ttl_seconds=86400,
         escalation_threshold=0.65,
@@ -242,7 +281,7 @@ async def test_duplicate_event_has_no_side_effect() -> None:
             event_id="duplicate-event",
             message_id="duplicate-message",
             sender_id="facebook-user-1",
-            text="Mấy giờ nhận phòng?",
+            text="Mấy giờ check-in?",
             received_at=datetime.now(UTC),
         )
     )
@@ -251,3 +290,62 @@ async def test_duplicate_event_has_no_side_effect() -> None:
     assert conversation_repository.incoming == []
     assert message_gateway.sent == []
     assert notifier.notices == []
+
+
+async def test_process_incoming_message_uses_custom_prompts() -> None:
+    conversation_repository = FakeConversationRepository()
+    message_gateway = FakeMessageGateway()
+    notifier = FakeEscalationNotifier()
+    calendar_gateway = FakeCalendarGateway()
+
+    room_id = uuid.uuid4()
+    room = Room(id=room_id, name="Home 1", price_per_night=600000, price_per_hour=100000, capacity=2)
+    room_repository = FakeRoomRepository([room])
+    booking_repository = FakeBookingRepository([])
+
+    message = IncomingMessage(
+        event_id="event-1",
+        message_id="message-1",
+        sender_id="facebook-user-1",
+        text="Chốt phòng Home 1",
+        received_at=datetime.now(UTC),
+    )
+
+    custom_prompts = {
+        "confirm_success": "Đã tạo đặt phòng thành công cho {room_name} từ {check_in} đến {check_out}. SĐT: {phone}."
+    }
+
+    use_case = ProcessIncomingMessage(
+        ai_responder=FakeAIResponder(
+            AIDecision(
+                intent=Intent.BOOKING_CONFIRMATION,
+                draft_reply="Ok",
+                confidence=0.98,
+                needs_human=False,
+                entities=ExtractedEntities(
+                    check_in=datetime(2026, 6, 20, 14, 0, tzinfo=VN_TZ),
+                    check_out=datetime(2026, 6, 22, 12, 0, tzinfo=VN_TZ),
+                    guest_count=2,
+                    phone="0909123456",
+                    room_name="Home 1",
+                ),
+            )
+        ),
+        conversation_repository=conversation_repository,
+        idempotency_store=FakeIdempotencyStore(),
+        message_gateway=message_gateway,
+        escalation_notifier=notifier,
+        room_repository=room_repository,
+        booking_repository=booking_repository,
+        calendar_gateway=calendar_gateway,
+        history_limit=10,
+        idempotency_ttl_seconds=86400,
+        escalation_threshold=0.65,
+        prompts=custom_prompts,
+    )
+
+    result = await use_case.execute(message)
+
+    assert result.reply_sent is True
+    expected_reply = "Đã tạo đặt phòng thành công cho Home 1 từ 14h 20/06 đến 12h 22/06. SĐT: 0909123456."
+    assert message_gateway.sent[0][1] == expected_reply

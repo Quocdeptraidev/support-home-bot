@@ -41,8 +41,8 @@ class ConversationMessage:
 
 @dataclass(frozen=True, slots=True)
 class ExtractedEntities:
-    check_in: date | None = None
-    check_out: date | None = None
+    check_in: datetime | None = None
+    check_out: datetime | None = None
     guest_count: int | None = None
     phone: str | None = None
     room_name: str | None = None

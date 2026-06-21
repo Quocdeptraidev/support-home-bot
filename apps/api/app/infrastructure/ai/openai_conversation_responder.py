@@ -25,14 +25,15 @@ class OpenAIEntities(BaseModel):
     check_in: str | None = Field(
         default=None,
         description=(
-            "Check-in date in YYYY-MM-DD format, parsed from user message relative to current time."
+            "Check-in date and time in YYYY-MM-DD HH:MM format. If time is not specified by the user, default to 14:00. "
+            "Example: '2026-05-16 19:00'."
         ),
     )
     check_out: str | None = Field(
         default=None,
         description=(
-            "Check-out date in YYYY-MM-DD format, parsed from user message relative "
-            "to current time."
+            "Check-out date and time in YYYY-MM-DD HH:MM format. If time is not specified by the user, default to 12:00 "
+            "on the next day."
         ),
     )
     guest_count: int | None = Field(
@@ -84,11 +85,13 @@ class OpenAIConversationResponder(AIResponder):
         api_key: SecretStr,
         model: str,
         timeout_seconds: float,
+        system_prompt_template: str = "",
         timezone_name: str = "Asia/Ho_Chi_Minh",
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._timeout_seconds = timeout_seconds
+        self._system_prompt_template = system_prompt_template
         self._timezone_name = timezone_name
 
         key_val = self._api_key.get_secret_value()
@@ -97,18 +100,21 @@ class OpenAIConversationResponder(AIResponder):
 
         self._client = AsyncOpenAI(api_key=key_val)
 
-    def _parse_date(self, date_str: str | None) -> date | None:
-        if not date_str:
+    def _parse_datetime(self, datetime_str: str | None) -> datetime | None:
+        if not datetime_str:
             return None
         try:
-            parsed = dateparser.parse(date_str)
+            parsed = dateparser.parse(
+                datetime_str,
+                settings={
+                    "TIMEZONE": self._timezone_name,
+                    "RETURN_AS_TIMEZONE_AWARE": True,
+                    "PREFER_DATES_FROM": "future",
+                }
+            )
             if parsed:
-                return parsed.date()  # type: ignore
-        except Exception:
-            pass
-
-        try:
-            return date.fromisoformat(date_str)
+                from datetime import UTC
+                return parsed.astimezone(UTC)
         except Exception:
             pass
         return None
@@ -120,44 +126,9 @@ class OpenAIConversationResponder(AIResponder):
     ) -> AIDecision:
         current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        system_prompt = (
-            "Bạn là một trợ lý ảo thông minh và thân thiện của Mây Homestay Đà Lạt "
-            "(một homestay thơ mộng, ấm cúng).\n"
-            "Nhiệm vụ của bạn là hỗ trợ khách hàng qua Messenger: trả lời câu hỏi FAQ "
-            "và thu thập thông tin đặt phòng khi khách có nhu cầu.\n\n"
-            "Quy định hoạt động:\n"
-            "1. Bạn phải luôn trả lời bằng tiếng Việt lịch sự, ấm áp "
-            "và sử dụng kính ngữ ('dạ', 'ạ').\n"
-            f"2. Thời gian hiện tại hệ thống là: {current_time_str}. Hãy dùng mốc thời gian này "
-            "để chuyển đổi các ngày tương đối (như 'thứ bảy tuần này', 'ngày mai', 'hôm nay') "
-            "thành ngày cụ thể định dạng YYYY-MM-DD.\n"
-            "3. Khi khách có ý định hỏi phòng hoặc đặt phòng (booking_inquiry):\n"
-            "   - Hãy nắm rõ thông tin 3 loại phòng của Mây Homestay Đà Lạt để cung cấp khi khách hỏi:\n"
-            "     + Phòng 'Couple View Vườn': Giá niêm yết 650.000đ/đêm, sức chứa tối đa 2 người.\n"
-            "     + Phòng 'Family Valley View': Giá niêm yết 1.200.000đ/đêm, sức chứa tối đa 4 người.\n"
-            "     + Phòng 'Standard Room': Giá niêm yết 500.000đ/đêm, sức chứa tối đa 2 người.\n"
-            "   - Khi khách hỏi thông tin phòng, giá phòng chung chung, hoặc hỏi xem có phòng nào:\n"
-            "     + Hãy giới thiệu chi tiết các loại phòng và giá niêm yết trên một cách thân thiện.\n"
-            "     + Thân thiện hỏi thêm các thông tin còn thiếu (ngày check-in, ngày check-out, số khách) để hệ thống kiểm tra tình trạng trống thực tế.\n"
-            "   - Hãy cố gắng thu thập các thông tin: check_in, check_out, guest_count, phone.\n"
-            "   - Nếu thông tin nào chưa có, hãy phản hồi gợi ý một cách tự nhiên để hỏi thêm thông tin đó.\n"
-            "   - Không được tự ý xác nhận phòng còn trống trong một khoảng thời gian cụ thể (ví dụ: 'phòng còn trống vào thứ 7 này') hay tự tính toán tổng giá phòng cuối cùng khi chưa chạy qua kiểm tra của hệ thống, hãy phản hồi giới thiệu phòng/giá niêm yết chung và đề xuất khách gửi thông tin ngày để kiểm tra chính xác.\n"
-            "4. Khi khách muốn chốt đặt phòng và đã cung cấp đủ thông tin "
-            "(hoặc đồng ý giữ phòng):\n"
-            "   - Đặt intent là 'booking_confirmation'.\n"
-            "   - Đặt needs_human là true để hệ thống chuyển tiếp cho chủ nhà xác nhận.\n"
-            "5. Phân loại Intent chính xác:\n"
-            "   - 'faq': Câu hỏi chung về giờ check-in, địa chỉ, tiện ích...\n"
-            "   - 'booking_inquiry': Khách hỏi giá, phòng trống, hỏi thông tin đặt phòng.\n"
-            "   - 'booking_confirmation': Khách đồng ý đặt phòng, muốn giữ phòng, cung cấp SĐT để "
-            "xác nhận đặt phòng.\n"
-            "   - 'human_request': Khách yêu cầu gặp nhân viên hoặc chủ nhà trực tiếp.\n"
-            "   - 'unknown': Không rõ ý định.\n"
-            "6. Nếu khách yêu cầu gặp người thật hoặc hỏi câu hỏi quá phức tạp, "
-            "đặt 'needs_human' = true và 'escalation_reason' = 'customer_requested_human'.\n"
-            "7. Nếu bạn không chắc chắn về ý định của khách hoặc thông tin không rõ ràng, "
-            "đặt 'needs_human' = true và 'escalation_reason' = 'low_ai_confidence' "
-            "và tự hạ confidence xuống dưới 0.65."
+        # Nạp động thời gian hệ thống vào template prompt bằng .replace() tránh xung đột cú pháp ngoặc nhọn
+        system_prompt = self._system_prompt_template.replace(
+            "{current_time_str}", current_time_str
         )
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -184,8 +155,8 @@ class OpenAIConversationResponder(AIResponder):
             raise AIProviderError("OpenAI returned empty parsed response")
 
         # Sanitize and parse entities
-        check_in = self._parse_date(parsed.entities.check_in)
-        check_out = self._parse_date(parsed.entities.check_out)
+        check_in = self._parse_datetime(parsed.entities.check_in)
+        check_out = self._parse_datetime(parsed.entities.check_out)
         guest_count = parsed.entities.guest_count
 
         if guest_count is not None and guest_count < 1:

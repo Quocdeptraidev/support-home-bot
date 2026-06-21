@@ -162,6 +162,7 @@ class RoomModel(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     price_per_night: Mapped[int] = mapped_column(nullable=False)
+    price_per_hour: Mapped[int] = mapped_column(nullable=False, default=0)
     capacity: Mapped[int] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -190,8 +191,8 @@ class BookingModel(Base):
         ForeignKey("conversations.id", ondelete="CASCADE"), index=True, nullable=False
     )
     room_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("rooms.id"), index=True, nullable=False)
-    check_in: Mapped[date] = mapped_column(Date, nullable=False)
-    check_out: Mapped[date] = mapped_column(Date, nullable=False)
+    check_in: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    check_out: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     guest_count: Mapped[int] = mapped_column(nullable=False)
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     total_price: Mapped[int] = mapped_column(nullable=False)

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from openai import OpenAIError
@@ -18,6 +19,8 @@ from app.infrastructure.ai.openai_conversation_responder import (
     OpenAIResponseSchema,
 )
 
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+
 
 @pytest.fixture
 def responder() -> OpenAIConversationResponder:
@@ -25,6 +28,7 @@ def responder() -> OpenAIConversationResponder:
         api_key=SecretStr("mock-key-123"),
         model="gpt-4o-mini",
         timeout_seconds=30.0,
+        system_prompt_template="Bạn là trợ lý ảo. Thời gian hiện tại: {current_time_str}",
     )
 
 
@@ -48,7 +52,7 @@ async def test_openai_responder_analyze_success(responder: OpenAIConversationRes
         confidence=0.92,
         needs_human=False,
         entities=OpenAIEntities(
-            check_in="2026-06-19",
+            check_in="2026-06-19 14:00",
             guest_count=2,
         ),
     )
@@ -79,7 +83,7 @@ async def test_openai_responder_analyze_success(responder: OpenAIConversationRes
         assert decision.needs_human is False
         assert decision.entities.guest_count == 2
         assert decision.entities.check_in is not None
-        assert decision.entities.check_in.strftime("%Y-%m-%d") == "2026-06-19"
+        assert decision.entities.check_in.astimezone(VN_TZ).strftime("%Y-%m-%d %H:%M") == "2026-06-19 14:00"
 
 
 @pytest.mark.asyncio

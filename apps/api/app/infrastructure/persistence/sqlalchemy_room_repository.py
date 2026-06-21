@@ -18,6 +18,7 @@ class SqlAlchemyRoomRepository(RoomRepository):
             id=model.id,
             name=model.name,
             price_per_night=model.price_per_night,
+            price_per_hour=model.price_per_hour,
             capacity=model.capacity,
         )
 
