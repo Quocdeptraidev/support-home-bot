@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import StrEnum
+import uuid
 
 
 class MessageRole(StrEnum):
@@ -77,6 +78,7 @@ class EscalationNotice:
     sender_id: str
     reason: EscalationReason
     summary: str
+    booking_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)

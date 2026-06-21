@@ -121,12 +121,14 @@ class FakeCalendarGateway:
         start_time: datetime,
         end_time: datetime,
         description: str,
+        color_id: str | None = None,
     ) -> str | None:
         self.events.append({
             "title": title,
             "start_time": start_time,
             "end_time": end_time,
             "description": description,
+            "color_id": color_id,
         })
         return "event-id-123"
 
@@ -195,6 +197,7 @@ async def test_booking_confirmation_is_saved_replied_and_escalated() -> None:
     # Assert calendar event is created
     assert len(calendar_gateway.events) == 1
     assert calendar_gateway.events[0]["title"] == "[ĐẶT PHÒNG PENDING] Home 1 - SĐT: 0909123456"
+    assert calendar_gateway.events[0]["color_id"] == "4"
     assert "Home 1" in calendar_gateway.events[0]["description"]
 
 

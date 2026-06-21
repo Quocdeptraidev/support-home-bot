@@ -92,6 +92,21 @@ class TelegramEscalationNotifier(EscalationNotifier):
             "text": message_text,
             "parse_mode": "HTML",
         }
+        if notice.booking_id:
+            payload["reply_markup"] = {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "Xác nhận đặt phòng ✅",
+                            "callback_data": f"confirm_booking:{notice.booking_id}",
+                        },
+                        {
+                            "text": "Hủy đặt phòng ❌",
+                            "callback_data": f"cancel_booking:{notice.booking_id}",
+                        },
+                    ]
+                ]
+            }
 
         status = "failed"
         telegram_message_id = None
@@ -144,3 +159,63 @@ class TelegramEscalationNotifier(EscalationNotifier):
             )
             session.add(escalation)
             await session.commit()
+
+    async def edit_message_text(self, *, chat_id: str, message_id: str, new_text: str) -> bool:
+        token_val = self._bot_token.get_secret_value()
+        if not token_val or not chat_id:
+            logger.warning("Telegram Bot Token or Chat ID not configured for editMessageText")
+            return False
+
+        url = f"{self._api_base_url}/bot{token_val}/editMessageText"
+        payload = {
+            "chat_id": chat_id,
+            "message_id": int(message_id),
+            "text": new_text,
+            "parse_mode": "HTML",
+        }
+
+        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+            try:
+                response = await client.post(url, json=payload)
+                if response.status_code == 200:
+                    logger.info("Successfully edited Telegram message. ID: %s", message_id)
+                    return True
+                else:
+                    logger.error(
+                        "Telegram API editMessageText returned error status %d: %s",
+                        response.status_code,
+                        response.text,
+                    )
+            except httpx.HTTPError as error:
+                logger.error("Failed to edit telegram message: %s", error)
+
+        return False
+
+    async def answer_callback_query(self, *, callback_query_id: str, text: str) -> bool:
+        token_val = self._bot_token.get_secret_value()
+        if not token_val:
+            logger.warning("Telegram Bot Token not configured for answerCallbackQuery")
+            return False
+
+        url = f"{self._api_base_url}/bot{token_val}/answerCallbackQuery"
+        payload = {
+            "callback_query_id": callback_query_id,
+            "text": text,
+        }
+
+        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+            try:
+                response = await client.post(url, json=payload)
+                if response.status_code == 200:
+                    logger.info("Successfully answered Telegram callback query. ID: %s", callback_query_id)
+                    return True
+                else:
+                    logger.error(
+                        "Telegram API answerCallbackQuery returned error status %d: %s",
+                        response.status_code,
+                        response.text,
+                    )
+            except httpx.HTTPError as error:
+                logger.error("Failed to answer telegram callback query: %s", error)
+
+        return False

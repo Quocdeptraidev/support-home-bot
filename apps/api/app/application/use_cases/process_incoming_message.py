@@ -72,6 +72,7 @@ class ProcessIncomingMessage:
         self._prompts = prompts or {}
 
     async def execute(self, message: IncomingMessage) -> ProcessMessageResult:
+        booking_id = None
         claimed = await self._idempotency_store.claim(
             message.event_id,
             self._idempotency_ttl_seconds,
@@ -281,20 +282,9 @@ class ProcessIncomingMessage:
                     if conv_id is None:
                         conv_id = uuid.uuid4()
 
-                    booking = Booking(
-                        id=uuid.uuid4(),
-                        conversation_id=conv_id,
-                        room_id=room.id,
-                        check_in=check_in,
-                        check_out=check_out,
-                        guest_count=guest_count,
-                        phone=phone,
-                        total_price=total,
-                        status=BookingStatus.PENDING,
-                    )
-                    await self._booking_repository.create(booking)
+                    booking_id = uuid.uuid4()
 
-                    # Tự động điền Google Calendar
+                    # Tự động điền Google Calendar trước
                     calendar_title = f"[ĐẶT PHÒNG PENDING] {room.name} - SĐT: {phone}"
                     calendar_desc = (
                         f"Chi tiết đặt phòng:\n"
@@ -303,14 +293,30 @@ class ProcessIncomingMessage:
                         f"- SĐT khách: {phone}\n"
                         f"- Tổng tiền: {total:,} VNĐ\n"
                         f"- Trạng thái: PENDING (Chờ xác nhận)\n"
-                        f"- Booking ID: {booking.id}"
+                        f"- Booking ID: {booking_id}"
                     ).replace(",", ".")
-                    await self._calendar_gateway.create_event(
+                    
+                    event_id = await self._calendar_gateway.create_event(
                         title=calendar_title,
                         start_time=check_in,
                         end_time=check_out,
                         description=calendar_desc,
+                        color_id="4",  # Flamingo (Hồng nhạt) đại diện cho trạng thái PENDING
                     )
+
+                    booking = Booking(
+                        id=booking_id,
+                        conversation_id=conv_id,
+                        room_id=room.id,
+                        check_in=check_in,
+                        check_out=check_out,
+                        guest_count=guest_count,
+                        phone=phone,
+                        total_price=total,
+                        status=BookingStatus.PENDING,
+                        google_calendar_event_id=event_id,
+                    )
+                    await self._booking_repository.create(booking)
 
                     tpl = self._prompts.get(
                         "confirm_success",
@@ -350,6 +356,7 @@ class ProcessIncomingMessage:
                     sender_id=message.sender_id,
                     reason=reason,
                     summary=escalation_summary,
+                    booking_id=booking_id,
                 )
             )
 

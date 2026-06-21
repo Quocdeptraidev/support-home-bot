@@ -135,3 +135,11 @@ class SqlAlchemyConversationRepository(ConversationRepository):
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_external_user_id(self, conversation_id: uuid.UUID) -> str | None:
+        stmt = select(ConversationModel.external_user_id).where(
+            ConversationModel.id == conversation_id,
+            ConversationModel.channel == "facebook",
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
